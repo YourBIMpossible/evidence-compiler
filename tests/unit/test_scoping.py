@@ -1,0 +1,54 @@
+"""Prompt scoping: intent, symbol extraction, token estimate."""
+
+from __future__ import annotations
+
+from evidence_compiler import scoping
+
+
+def test_intent_debugging():
+    assert scoping.infer_intent("There's a bug where compute_alpha crashes") == "debugging"
+
+
+def test_intent_refactor():
+    assert scoping.infer_intent("Please refactor AlphaService to be simpler") == "refactor"
+
+
+def test_intent_implementation():
+    assert scoping.infer_intent("implement a new caching layer") == "implementation"
+
+
+def test_intent_unknown():
+    assert scoping.infer_intent("hello there") == "unknown"
+
+
+def test_symbol_extraction_picks_identifiers():
+    syms = scoping.extract_symbols("Why does AlphaService.run call compute_alpha()?")
+    assert "AlphaService.run" in syms or "AlphaService" in syms
+    assert "compute_alpha" in syms
+
+
+def test_dotted_symbol_also_yields_leading_identifier():
+    # dotted member expressions rarely appear verbatim in source, so the
+    # leading identifier is surfaced too (for lexical matching), first-seen.
+    syms = scoping.extract_symbols("Why does AlphaService.run break?")
+    assert syms == ["AlphaService.run", "AlphaService"]
+
+
+def test_symbol_extraction_drops_prose():
+    syms = scoping.extract_symbols("please help me understand the code here")
+    assert syms == []
+
+
+def test_symbol_extraction_is_deterministic():
+    prompt = "Trace OriginSystem through build_service and AlphaService"
+    assert scoping.extract_symbols(prompt) == scoping.extract_symbols(prompt)
+
+
+def test_backticked_symbols_included():
+    syms = scoping.extract_symbols("look at `x` and `do_thing`")
+    assert "do_thing" in syms
+
+
+def test_token_estimate_monotonic():
+    assert scoping.estimate_tokens("") == 0
+    assert scoping.estimate_tokens("a b c") <= scoping.estimate_tokens("a b c d e f g")

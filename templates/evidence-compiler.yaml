@@ -1,0 +1,30 @@
+# Evidence Compiler — per-repo configuration template.
+# Copy to <repo>/.evidence-compiler/config.yaml (or run `evidence init`).
+# Core runs on built-in defaults if this file is absent; every key is optional.
+# Product-specific policy (BIMpossible/Revit/APS conventions, project rules)
+# belongs in this file, never in core package code.
+
+storage:
+  dir: .evidence-compiler/packets
+
+# Adapter end-to-end hard safety ceiling (ms). Operational target is p95 < 1s;
+# this is the absolute ceiling (context-brief spec §5).
+deadline_ms: 25000
+
+budget:
+  min_tokens: 600
+  default_tokens: 1000
+  max_tokens: 1200
+
+collectors:
+  git:
+    enabled: true
+    timeout_ms: 250
+  ripgrep:
+    enabled: true
+    timeout_ms: 500
+    extra_args: []
+  graphify:
+    # Phase 1A stub: always reports "skipped / not implemented".
+    enabled: true
+    timeout_ms: 1250

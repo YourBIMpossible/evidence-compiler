@@ -1,5 +1,7 @@
 # Evidence Compiler
 
+[![tests](https://github.com/YourBIMpossible/evidence-compiler/actions/workflows/tests.yml/badge.svg)](https://github.com/YourBIMpossible/evidence-compiler/actions/workflows/tests.yml)
+
 A local, deterministic control plane that collects evidence about your
 repository, normalizes it into an immutable **EvidencePacket**, and renders a
 token-budgeted **ContextBrief** for an AI coding agent.

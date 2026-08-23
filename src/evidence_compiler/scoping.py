@@ -43,7 +43,11 @@ _MAX_SYMBOLS = 12
 
 
 def prompt_hash(prompt: str) -> str:
-    return hashlib.sha256((prompt or "").encode("utf-8")).hexdigest()
+    # surrogatepass: prompt text may contain unpaired UTF-16 surrogate code
+    # points (e.g. from truncated multi-byte input upstream). Strict "utf-8"
+    # raises UnicodeEncodeError on those; surrogatepass encodes them losslessly
+    # so the hash stays deterministic without silently dropping prompt data.
+    return hashlib.sha256((prompt or "").encode("utf-8", errors="surrogatepass")).hexdigest()
 
 
 def infer_intent(prompt: str) -> str:

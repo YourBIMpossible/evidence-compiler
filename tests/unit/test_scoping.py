@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+
 from evidence_compiler import scoping
 
 
@@ -52,3 +54,24 @@ def test_backticked_symbols_included():
 def test_token_estimate_monotonic():
     assert scoping.estimate_tokens("") == 0
     assert scoping.estimate_tokens("a b c") <= scoping.estimate_tokens("a b c d e f g")
+
+
+def test_prompt_hash_ordinary_unicode_unchanged():
+    # Pins prompt_hash to plain strict-utf8 sha256 for well-formed input, so
+    # the surrogatepass error handler never changes output for normal prompts.
+    prompt = "Explain why café ordering fails 🔥"
+    expected = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+    assert scoping.prompt_hash(prompt) == expected
+
+
+def test_prompt_hash_unpaired_surrogate_does_not_raise():
+    prompt = "before \udc9d after"
+    scoping.prompt_hash(prompt)  # must not raise UnicodeEncodeError
+
+
+def test_prompt_hash_unpaired_surrogate_is_deterministic():
+    prompt = "before \udc9d after"
+    first = scoping.prompt_hash(prompt)
+    second = scoping.prompt_hash(prompt)
+    assert first == second
+    assert len(first) == 64

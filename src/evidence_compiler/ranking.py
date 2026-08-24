@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import os
 
-from .packet import EvidenceItem, EvidencePacket
+from .packet import EvidenceItem, EvidencePacket, canonical_item_key
 from .scoping import estimate_tokens
 
 # --- component weights (tune with golden fixtures, not a model) -------------
@@ -38,6 +38,13 @@ def rank(packet: EvidencePacket) -> EvidencePacket:
     symbols = [s.lower() for s in packet.task.extracted_symbols]
     active_file = _norm(packet.task.active_file)
     active_dir = os.path.dirname(active_file) if active_file else ""
+
+    # Canonicalize evidence order before scoring so ranking is a pure function
+    # of content, not of collector arrival order. Without this, the
+    # duplication penalty below (first-seen reference wins) and the budget
+    # tiebreak both depend on the order ripgrep happened to emit matches in,
+    # which is not reproducible across runs (F-D1).
+    packet.evidence.sort(key=canonical_item_key)
 
     seen_refs: set[str] = set()
 
@@ -135,21 +142,23 @@ def _select_under_budget(packet: EvidencePacket) -> None:
     target = packet.budget.default_tokens
 
     # candidates: anything with relevance above none. Stable order: score desc,
-    # then original index for full determinism.
-    indexed = list(enumerate(packet.evidence))
+    # then the content-derived canonical key — never arrival order — so which
+    # items win the greedy budget fill is fully reproducible (F-D1).
     candidates = [
-        (idx, item)
-        for idx, item in indexed
+        item
+        for item in packet.evidence
         if item.compiler_assessment.relevance != "none"
     ]
-    candidates.sort(key=lambda pair: (-pair[1].compiler_assessment.final_score, pair[0]))
+    candidates.sort(
+        key=lambda item: (-item.compiler_assessment.final_score, canonical_item_key(item))
+    )
 
-    candidate_tokens = sum(_item_tokens(item) for _, item in candidates)
+    candidate_tokens = sum(_item_tokens(item) for item in candidates)
     injected = 0
     selected_ids: list[str] = []
     omitted_ids: list[str] = []
 
-    for _, item in candidates:
+    for item in candidates:
         cost = _item_tokens(item)
         if injected + cost <= target:
             item.compiler_assessment.selected = True

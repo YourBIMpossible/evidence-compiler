@@ -168,6 +168,43 @@ class EvidenceItem:
     id: str = field(default_factory=lambda: new_id("ev"))
 
 
+def _ref_sort_key(ref: str) -> tuple[str, int]:
+    """Order a ``file:line`` reference by (path, numeric line).
+
+    Slashes are normalized so platform path separators never perturb the
+    order, and the line is compared numerically so ``:100`` follows ``:9``
+    rather than sorting lexically before it.
+    """
+    norm = ref.replace("\\", "/")
+    path, sep, line = norm.partition(":")
+    if sep:
+        try:
+            return (path, int(line))
+        except ValueError:
+            return (path, -1)
+    return (norm, -1)
+
+
+def canonical_item_key(item: "EvidenceItem") -> tuple:
+    """A total order over evidence derived only from item *content*.
+
+    Ranking and rendering must be pure functions of what the evidence *is*,
+    never of the order collectors happened to emit it in (which, for parallel
+    tools like ripgrep, is not reproducible). This key intentionally excludes
+    the random ``id`` and the wall-clock ``captured_at`` so identical evidence
+    always sorts identically across runs — the property F-D1 exposed as broken.
+    """
+    claim = item.source_claim
+    refs = tuple(_ref_sort_key(r) for r in sorted(claim.references, key=_ref_sort_key))
+    return (
+        refs,
+        item.provenance.collector,
+        claim.kind,
+        claim.statement,
+        str(item.provenance.extra.get("symbol", "")),
+    )
+
+
 @dataclass
 class NegativeEvidenceItem:
     """Absence *after* search is first-class evidence (spec §4)."""

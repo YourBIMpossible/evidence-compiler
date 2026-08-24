@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .packet import EvidenceItem, EvidencePacket
+from .packet import EvidenceItem, EvidencePacket, canonical_item_key
 from .scoping import estimate_tokens
 
 # lane grouping by source_claim.kind
@@ -41,7 +41,9 @@ def render_brief(packet: EvidencePacket) -> RenderResult:
     max_tokens = packet.budget.max_tokens
 
     selected = [item for item in packet.evidence if item.compiler_assessment.selected]
-    selected.sort(key=lambda it: (-it.compiler_assessment.final_score, it.id))
+    # Tiebreak on content, not the random item id — otherwise equally-scored
+    # items render in a different order every run (F-D1).
+    selected.sort(key=lambda it: (-it.compiler_assessment.final_score, canonical_item_key(it)))
     negatives = [n for n in packet.negative_evidence if n.outcome == "no_existing_reference"]
 
     chosen: list[EvidenceItem] = []

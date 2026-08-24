@@ -20,7 +20,10 @@ from evidence_compiler.storage import load_packet
 
 HAS_GIT = shutil.which("git") is not None
 HAS_RG = shutil.which("rg") is not None
-PROMPT = "Why does AlphaService.run break, and is OriginSystem referenced anywhere?"
+# Phase 1B note: `AlphaService.run` derives no extra candidate ("run" is
+# prose-guarded), so `compute_alpha` keeps a positively-matching symbol in the
+# golden prompt — the lexical lane stays exercised end-to-end.
+PROMPT = "Why does AlphaService.run break inside compute_alpha, and is OriginSystem referenced anywhere?"
 
 
 def _compile(repo):

@@ -68,7 +68,13 @@ class RipgrepCollector(Collector):
                 break
             remaining_ms = int((deadline - time.perf_counter()) * 1000)
             call_ms = min(per_symbol_ms, max(remaining_ms, 50))
-            cmd = [rg, "--json", "--word-regexp", "--fixed-strings", *extra_args, symbol, "."]
+            # snake_case candidates (including compound-derived ones like
+            # ``user_agent`` from ``User-Agent``) must also match when
+            # embedded in a longer identifier (``default_user_agent``), so
+            # they are searched as plain substrings. Everything else keeps
+            # whole-word matching to avoid noise inside unrelated words.
+            match_args = ["--fixed-strings"] if "_" in symbol else ["--word-regexp", "--fixed-strings"]
+            cmd = [rg, "--json", *match_args, *extra_args, symbol, "."]
             try:
                 proc = subprocess.run(
                     cmd,

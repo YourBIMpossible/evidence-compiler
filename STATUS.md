@@ -22,7 +22,7 @@ the README) and deletion of the superseded `NORTHSTAR.draft.md`.
 
 Repo is public: https://github.com/YourBIMpossible/evidence-compiler
 CI is green on Python 3.10/3.11/3.12 (rg installed in CI).
-Local test evidence: `60 passed, 10 skipped` (rg absent) / `70 passed` (rg
+Local test evidence: `63 passed, 10 skipped` (rg absent) / `73 passed` (rg
 available).
 
 ## What happens next (the plan)
@@ -112,7 +112,7 @@ Read-only. No files modified, no commits, no pushes, no installs.
 | Claude Code adapter is fail-open | PASS | `main()` wraps everything in `try/except Exception → return 0`; watchdog thread enforces end-to-end deadline independent of per-collector timeouts ([claude_code.py](src/evidence_compiler/integrations/claude_code.py)); `tests/test_adapter_failopen.py` exists |
 | Replay warns on identity mismatch | PASS | F-2 fix this session: `_identity_mismatch()` in [cli.py](src/evidence_compiler/cli.py:146); verified live via CLI smoke test (WARNING printed from mismatched cwd, silent from matching cwd) |
 | Runtime packets/logs/caches gitignored | PASS | `.gitignore` covers `.evidence-compiler/packets/`, `.evidence-compiler/logs/`, `__pycache__/`, `*.egg-info/`; `git ls-files \| grep -iE "pycache\|egg-info\|\.evidence-compiler\|packets\|secret"` → none tracked |
-| CI passing, rg-absent and rg-available coverage | PASS | rg-absent: `python -m pytest` → `60 passed, 10 skipped`; rg-available: `70 passed`; CI workflow ([tests.yml](.github/workflows/tests.yml)) runs on Ubuntu with `rg` installed across Python 3.10/3.11/3.12; latest run green |
+| CI passing, rg-absent and rg-available coverage | PASS | rg-absent: `python -m pytest` → `63 passed, 10 skipped`; rg-available: `73 passed`; CI workflow ([tests.yml](.github/workflows/tests.yml)) runs on Ubuntu with `rg` installed across Python 3.10/3.11/3.12; latest run green |
 
 # Deferred work confirmation
 
@@ -131,7 +131,7 @@ Read-only. No files modified, no commits, no pushes, no installs.
 - **Git status:** clean, `master` up to date with `origin/master`, nothing uncommitted.
 - **Runtime artifacts:** `.evidence-compiler/packets/` and `.evidence-compiler/logs/` are gitignored and confirmed untracked; `__pycache__/` and `*.egg-info/` present locally (build byproducts of this session's test runs) but also gitignored and untracked.
 - **No local paths, secrets, or BIMpossible/private info tracked** — file listing (`git ls-files`) is exclusively `docs/`, `src/`, `tests/`, `templates/`, config, and license/readme files; no `.env`, credentials, or absolute local paths committed.
-- **CI/test status:** latest two workflow runs (`de1e0fc`, `9856d23`) both green on all three Python matrix legs; local re-run this turn confirms `60 passed/10 skipped` (rg absent) and `70 passed` (rg available) — consistent with CI's rg-installed environment.
+- **CI/test status:** latest two workflow runs (`de1e0fc`, `9856d23`) both green on all three Python matrix legs; local re-run this turn confirms `63 passed/10 skipped` (rg absent) and `73 passed` (rg available) — consistent with CI's rg-installed environment.
 
 # Local-AI future readiness
 

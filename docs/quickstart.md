@@ -2,8 +2,11 @@
 
 This walks through Evidence Compiler against a public repo, not a private
 one, so the value is visible without any project-specific setup. Every
-command and every line of output below is a real, unedited run — no
-invented output, in keeping with the project's own no-guessing invariant.
+command and substantive output line below was captured from a real run. The
+local checkout path in the replay output is intentionally redacted as
+`/path/to/requests`; no behavior, evidence citation, collector status, or
+result was fabricated — in keeping with the project's own no-guessing
+invariant.
 
 ## 1. Install
 

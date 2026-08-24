@@ -1,7 +1,7 @@
 # Evidence Compiler — Status
 
-**Last updated:** 2026-08-22
-**North Star:** none locked yet — see `NORTHSTAR.draft.md` at repo root, awaiting your rename to activate it.
+**Last updated:** 2026-08-23
+**North Star:** locked and active — see [NORTHSTAR.md](NORTHSTAR.md). The stale `NORTHSTAR.draft.md` (superseded by the lock) has been deleted.
 
 ---
 
@@ -13,13 +13,16 @@ full read-only readiness review followed. Verdict:
 
 **CLEAR TO PAUSE AND DOGFOOD AFTER MIGRATION**
 
-No blockers, no highs, no mediums. One cosmetic low (mojibake `§` in
-`evidence --help` output on this Windows shell — not yet confirmed to
-reproduce in a UTF-8 terminal, not fixed).
+No blockers, no highs, no mediums. The mojibake `§` in `evidence --help`
+output and a stale `pyproject.toml` Homepage/Documentation URL (pointed at
+`evidence-compiler/evidence-compiler` instead of the actual origin,
+`YourBIMpossible/evidence-compiler`) were found and fixed 2026-08-23,
+alongside a new `docs/quickstart.md` (public-repo walkthrough, linked from
+the README) and deletion of the superseded `NORTHSTAR.draft.md`.
 
 Repo is public: https://github.com/YourBIMpossible/evidence-compiler
 CI is green on Python 3.10/3.11/3.12 (rg installed in CI).
-Local test evidence: `60 passed, 10 skipped` (rg absent) / `70 passed` (rg
+Local test evidence: `63 passed, 10 skipped` (rg absent) / `73 passed` (rg
 available).
 
 ## What happens next (the plan)
@@ -63,8 +66,9 @@ for the checks run): verification hooks/hard-Stop/change contracts, a
 resident daemon, local-AI/Ollama in the critical path, LLM-based ranking or
 autonomous loops, GPU/vector-DB/embeddings/RAG/MCP server, a second agent
 adapter, and any BIMpossible/Revit/APS-specific logic in core. These stay
-out until the north star (once locked) or an explicit new decision pulls
-one of them into scope — not implicitly, not "while we're in there."
+out unless the now-locked [NORTHSTAR.md](NORTHSTAR.md) is explicitly
+revised or a separately approved phase proposal authorizes them — not
+implicitly, not "while we're in there."
 
 Local-AI is **partly ready** to add later in the correct form (opt-in,
 outside the critical path, `INFERRED`-authority, never satisfies
@@ -108,7 +112,7 @@ Read-only. No files modified, no commits, no pushes, no installs.
 | Claude Code adapter is fail-open | PASS | `main()` wraps everything in `try/except Exception → return 0`; watchdog thread enforces end-to-end deadline independent of per-collector timeouts ([claude_code.py](src/evidence_compiler/integrations/claude_code.py)); `tests/test_adapter_failopen.py` exists |
 | Replay warns on identity mismatch | PASS | F-2 fix this session: `_identity_mismatch()` in [cli.py](src/evidence_compiler/cli.py:146); verified live via CLI smoke test (WARNING printed from mismatched cwd, silent from matching cwd) |
 | Runtime packets/logs/caches gitignored | PASS | `.gitignore` covers `.evidence-compiler/packets/`, `.evidence-compiler/logs/`, `__pycache__/`, `*.egg-info/`; `git ls-files \| grep -iE "pycache\|egg-info\|\.evidence-compiler\|packets\|secret"` → none tracked |
-| CI passing, rg-absent and rg-available coverage | PASS | rg-absent: `python -m pytest` → `60 passed, 10 skipped`; rg-available: `70 passed`; CI workflow ([tests.yml](.github/workflows/tests.yml)) runs on Ubuntu with `rg` installed across Python 3.10/3.11/3.12; latest run green |
+| CI passing, rg-absent and rg-available coverage | PASS | rg-absent: `python -m pytest` → `63 passed, 10 skipped`; rg-available: `73 passed`; CI workflow ([tests.yml](.github/workflows/tests.yml)) runs on Ubuntu with `rg` installed across Python 3.10/3.11/3.12; latest run green |
 
 # Deferred work confirmation
 
@@ -127,7 +131,7 @@ Read-only. No files modified, no commits, no pushes, no installs.
 - **Git status:** clean, `master` up to date with `origin/master`, nothing uncommitted.
 - **Runtime artifacts:** `.evidence-compiler/packets/` and `.evidence-compiler/logs/` are gitignored and confirmed untracked; `__pycache__/` and `*.egg-info/` present locally (build byproducts of this session's test runs) but also gitignored and untracked.
 - **No local paths, secrets, or BIMpossible/private info tracked** — file listing (`git ls-files`) is exclusively `docs/`, `src/`, `tests/`, `templates/`, config, and license/readme files; no `.env`, credentials, or absolute local paths committed.
-- **CI/test status:** latest two workflow runs (`de1e0fc`, `9856d23`) both green on all three Python matrix legs; local re-run this turn confirms `60 passed/10 skipped` (rg absent) and `70 passed` (rg available) — consistent with CI's rg-installed environment.
+- **CI/test status:** latest two workflow runs (`de1e0fc`, `9856d23`) both green on all three Python matrix legs; local re-run this turn confirms `63 passed/10 skipped` (rg absent) and `73 passed` (rg available) — consistent with CI's rg-installed environment.
 
 # Local-AI future readiness
 
@@ -153,8 +157,9 @@ Smallest future contract addition (do not implement now):
 
 **MEDIUM:** none.
 
-**LOW:**
-- The CLI help text has a mojibake artifact (`build brief §8` renders as `build brief \xef\xbf\xbd8`) in `evidence --help` output — cosmetic only, in a docstring in [cli.py](src/evidence_compiler/cli.py:8), caused by a non-ASCII `§` character likely saved without explicit UTF-8 declaration being read back through a non-UTF-8 console codepage on this Windows shell. Confirm whether this reproduces in a UTF-8 terminal before treating as real; if it does, replace `§` with `section` in the CLI docstring.
+**LOW:** none outstanding.
+- ~~The CLI help text has a mojibake artifact (`build brief §8`) in `evidence --help` output~~ — fixed 2026-08-23: `§` replaced with `section` in the [cli.py](src/evidence_compiler/cli.py:6) docstring.
+- ~~`pyproject.toml` `Homepage`/`Documentation` URLs pointed at `evidence-compiler/evidence-compiler`, not the actual origin~~ — fixed 2026-08-23: both now point at `YourBIMpossible/evidence-compiler`, matching `git remote -v` and the README badge.
 
 **Informational:**
 - `authority: inferred` in the current schema means "compiler-inferred from context," not "LLM/model-inferred." When local-AI work is eventually scoped, this naming will need disambiguation (see Local-AI future readiness) — not an action item now, just a naming collision to be aware of before that work starts.

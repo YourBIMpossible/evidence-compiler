@@ -32,6 +32,9 @@ Neither is required: with both missing the compiler still runs and produces a
 
 ## Quickstart (CLI)
 
+See [docs/quickstart.md](docs/quickstart.md) for a 5-minute walkthrough
+against a public repo, with real captured output.
+
 ```bash
 # scaffold per-repo config and print the Claude Code hook snippet
 evidence init --repo .
@@ -80,6 +83,7 @@ policy belongs here, never in core package code. See the file written by
 | [collector-interface-v1](docs/specifications/collector-interface-v1.md) | Collector plugin boundary + contract tests |
 | [graphify-evaluation](docs/graphify-evaluation.md) | Graphify's role, evaluation tiers, guardrails |
 | [roadmap](docs/roadmap.md) | Phased delivery, v0.1 → v1.0, explicit non-goals |
+| [quickstart](docs/quickstart.md) | 5-minute walkthrough against a public repo |
 
 ## Core invariants
 

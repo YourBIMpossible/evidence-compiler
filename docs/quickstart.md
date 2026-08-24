@@ -67,7 +67,9 @@ Sources: active_file, prompt_symbol, git_diff
 Every claim carries a real `file:line` citation and a `why:` reason it was
 selected — nothing here is guessed or summarized from memory. `sessions.py:870`
 and `:881` are the actual definition and raise site; the compiler found and
-ranked them from a plain prompt string, no manual `@file` pointing required.
+ranked the relevant definition and raise site from the prompt, using the
+supplied active file only as an additional relevance signal—without
+requiring manual file attachment in the agent UI.
 
 The full packet (all 25 evidence items collected, not just the 22 that fit
 the budget) is written to `.evidence-compiler/packets/<packet-id>.json` —

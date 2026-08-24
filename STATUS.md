@@ -1,7 +1,7 @@
 # Evidence Compiler — Status
 
-**Last updated:** 2026-08-22
-**North Star:** none locked yet — see `NORTHSTAR.draft.md` at repo root, awaiting your rename to activate it.
+**Last updated:** 2026-08-23
+**North Star:** locked and active — see [NORTHSTAR.md](NORTHSTAR.md). The stale `NORTHSTAR.draft.md` (superseded by the lock) has been deleted.
 
 ---
 
@@ -13,9 +13,12 @@ full read-only readiness review followed. Verdict:
 
 **CLEAR TO PAUSE AND DOGFOOD AFTER MIGRATION**
 
-No blockers, no highs, no mediums. One cosmetic low (mojibake `§` in
-`evidence --help` output on this Windows shell — not yet confirmed to
-reproduce in a UTF-8 terminal, not fixed).
+No blockers, no highs, no mediums. The mojibake `§` in `evidence --help`
+output and a stale `pyproject.toml` Homepage/Documentation URL (pointed at
+`evidence-compiler/evidence-compiler` instead of the actual origin,
+`YourBIMpossible/evidence-compiler`) were found and fixed 2026-08-23,
+alongside a new `docs/quickstart.md` (public-repo walkthrough, linked from
+the README) and deletion of the superseded `NORTHSTAR.draft.md`.
 
 Repo is public: https://github.com/YourBIMpossible/evidence-compiler
 CI is green on Python 3.10/3.11/3.12 (rg installed in CI).
@@ -63,8 +66,9 @@ for the checks run): verification hooks/hard-Stop/change contracts, a
 resident daemon, local-AI/Ollama in the critical path, LLM-based ranking or
 autonomous loops, GPU/vector-DB/embeddings/RAG/MCP server, a second agent
 adapter, and any BIMpossible/Revit/APS-specific logic in core. These stay
-out until the north star (once locked) or an explicit new decision pulls
-one of them into scope — not implicitly, not "while we're in there."
+out unless the now-locked [NORTHSTAR.md](NORTHSTAR.md) is explicitly
+revised or a separately approved phase proposal authorizes them — not
+implicitly, not "while we're in there."
 
 Local-AI is **partly ready** to add later in the correct form (opt-in,
 outside the critical path, `INFERRED`-authority, never satisfies
@@ -153,8 +157,9 @@ Smallest future contract addition (do not implement now):
 
 **MEDIUM:** none.
 
-**LOW:**
-- The CLI help text has a mojibake artifact (`build brief §8` renders as `build brief \xef\xbf\xbd8`) in `evidence --help` output — cosmetic only, in a docstring in [cli.py](src/evidence_compiler/cli.py:8), caused by a non-ASCII `§` character likely saved without explicit UTF-8 declaration being read back through a non-UTF-8 console codepage on this Windows shell. Confirm whether this reproduces in a UTF-8 terminal before treating as real; if it does, replace `§` with `section` in the CLI docstring.
+**LOW:** none outstanding.
+- ~~The CLI help text has a mojibake artifact (`build brief §8`) in `evidence --help` output~~ — fixed 2026-08-23: `§` replaced with `section` in the [cli.py](src/evidence_compiler/cli.py:6) docstring.
+- ~~`pyproject.toml` `Homepage`/`Documentation` URLs pointed at `evidence-compiler/evidence-compiler`, not the actual origin~~ — fixed 2026-08-23: both now point at `YourBIMpossible/evidence-compiler`, matching `git remote -v` and the README badge.
 
 **Informational:**
 - `authority: inferred` in the current schema means "compiler-inferred from context," not "LLM/model-inferred." When local-AI work is eventually scoped, this naming will need disambiguation (see Local-AI future readiness) — not an action item now, just a naming collision to be aware of before that work starts.

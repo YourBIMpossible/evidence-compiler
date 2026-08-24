@@ -3,7 +3,7 @@
 Subcommands:
 
 - ``compile``  run the critical path for a prompt and print the brief.
-- ``replay``   minimal text report over a persisted packet (build brief §8).
+- ``replay``   minimal text report over a persisted packet (build brief section 8).
 - ``init``     scaffold ``.evidence-compiler/config.yaml`` from the template.
 - ``hook``     Claude Code Desktop ``UserPromptSubmit`` adapter (fail-open).
 """

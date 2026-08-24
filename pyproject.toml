@@ -34,8 +34,8 @@ dev = [
 evidence = "evidence_compiler.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/evidence-compiler/evidence-compiler"
-Documentation = "https://github.com/evidence-compiler/evidence-compiler/tree/main/docs"
+Homepage = "https://github.com/YourBIMpossible/evidence-compiler"
+Documentation = "https://github.com/YourBIMpossible/evidence-compiler/tree/main/docs"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

@@ -27,6 +27,17 @@ _INTENT_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
 # Identifier-ish tokens: dotted paths, CamelCase, snake_case, calls.
 _SYMBOL_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
 
+# Hyphenated technical compounds (``User-Agent``, ``Content-Type``,
+# ``X-Request-Id``): every component starts uppercase, which separates header/
+# protocol-style terms from prose hyphenations like "well-known". Tried before
+# _SYMBOL_RE so the compound is captured whole instead of being split into
+# generic fragments (Phase 1B).
+_COMPOUND_PART = r"[A-Z][A-Za-z0-9]*"
+_TOKEN_RE = re.compile(
+    rf"{_COMPOUND_PART}(?:-{_COMPOUND_PART})+"
+    r"|[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*"
+)
+
 # Common English / prose words to drop so they are not treated as symbols.
 _STOPWORDS = {
     "the", "a", "an", "and", "or", "but", "if", "then", "else", "for", "while", "with",
@@ -79,19 +90,31 @@ def extract_symbols(prompt: str, active_file: str | None = None) -> list[str]:
             seen.add(tok)
             out.append(tok)
 
-    for token in _SYMBOL_RE.findall(prompt):
+    for token in _TOKEN_RE.findall(prompt):
         if token in seen:
             continue
-        if not _is_symbolish(token, called, backticked):
-            continue
-        _admit(token)
-        # A dotted member expression (``AlphaService.run``) rarely appears
-        # verbatim in source; surface its leading identifier too so lexical
-        # collectors can match the definition. Keep first-seen order.
-        if "." in token:
-            head = token.split(".", 1)[0]
-            if head.lower() not in _STOPWORDS and len(head) >= 3:
-                _admit(head)
+        if "-" in token:
+            # Hyphenated compound: preserve it whole and derive exactly one
+            # structural candidate — the normalized snake_case identifier
+            # (``User-Agent`` → ``user_agent``). The hyphen components are
+            # never admitted as peer symbols: splitting them into generic
+            # words was the flood vector behind dogfood prompts 5/8/10.
+            _admit(token)
+            _admit(token.lower().replace("-", "_"))
+        else:
+            if not _is_symbolish(token, called, backticked):
+                continue
+            _admit(token)
+            # A dotted member expression (``Response.iter_content``) rarely
+            # appears verbatim in source; derive only the member name so the
+            # definition is matchable. The leading identifier is deliberately
+            # not derived — class names like ``Response`` are generic enough
+            # to flood the lexical lane. The member keeps the same prose
+            # guard the derivation has always used.
+            if "." in token:
+                member = token.rsplit(".", 1)[1]
+                if member.lower() not in _STOPWORDS and len(member) >= 3:
+                    _admit(member)
         if len(out) >= _MAX_SYMBOLS:
             break
     return out

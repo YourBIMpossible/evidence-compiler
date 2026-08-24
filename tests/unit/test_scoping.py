@@ -29,11 +29,15 @@ def test_symbol_extraction_picks_identifiers():
     assert "compute_alpha" in syms
 
 
-def test_dotted_symbol_also_yields_leading_identifier():
-    # dotted member expressions rarely appear verbatim in source, so the
-    # leading identifier is surfaced too (for lexical matching), first-seen.
+def test_dotted_symbol_derives_member_not_head():
+    # Phase 1B: a dotted member expression derives only the member name (with
+    # the prose guard — "run" is a stopword, so nothing is derived here). The
+    # leading identifier is no longer auto-derived; generic class names were
+    # the flood vector in dogfooding.
     syms = scoping.extract_symbols("Why does AlphaService.run break?")
-    assert syms == ["AlphaService.run", "AlphaService"]
+    assert syms == ["AlphaService.run"]
+    syms2 = scoping.extract_symbols("Why does AlphaService.compute_all break?")
+    assert syms2 == ["AlphaService.compute_all", "compute_all"]
 
 
 def test_symbol_extraction_drops_prose():

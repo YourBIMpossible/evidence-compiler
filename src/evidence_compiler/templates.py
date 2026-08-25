@@ -13,7 +13,15 @@ _CONFIG_YAML = """\
 # optional. Product-specific policy belongs in this file, never in core code.
 
 storage:
+  # Must resolve beneath .evidence-compiler/ — the hook-safe launcher refuses
+  # to run (fail-open, nothing injected) if this escapes that boundary.
   dir: .evidence-compiler/packets
+
+# Bounded packet retention, applied by `evidence hook-safe` after each
+# successful persist: the newest max_packets files are kept, older packets
+# are deleted. Set 0 to disable retention entirely.
+retention:
+  max_packets: 250
 
 # Adapter end-to-end hard safety ceiling (ms). Operational target is p95 < 1s.
 deadline_ms: 25000
@@ -45,7 +53,8 @@ _CLAUDE_SETTINGS_JSON = """\
         "hooks": [
           {
             "type": "command",
-            "command": "evidence hook"
+            "command": "evidence",
+            "args": ["hook-safe"]
           }
         ]
       }

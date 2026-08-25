@@ -24,8 +24,13 @@ DEFAULT_STORAGE_RELDIR = os.path.join(".evidence-compiler", "packets")
 # this is the absolute ceiling from context-brief spec §5 / build brief §6.
 DEFAULT_DEADLINE_MS = 25_000
 
+# Bounded packet retention applied by the hook-safe launcher after a
+# successful persist. 0 (or any non-positive value) disables retention.
+DEFAULT_MAX_PACKETS = 250
+
 DEFAULT_CONFIG: dict[str, Any] = {
     "storage": {"dir": DEFAULT_STORAGE_RELDIR},
+    "retention": {"max_packets": DEFAULT_MAX_PACKETS},
     "deadline_ms": DEFAULT_DEADLINE_MS,
     "budget": {"min_tokens": 600, "default_tokens": 1000, "max_tokens": 1200},
     "collectors": {
@@ -53,6 +58,14 @@ class Config:
         merged = dict(DEFAULT_CONFIG["budget"])
         merged.update({k: int(v) for k, v in b.items() if k in merged})
         return merged
+
+    @property
+    def retention_max_packets(self) -> int:
+        r = self.data.get("retention", {}) or {}
+        try:
+            return int(r.get("max_packets", DEFAULT_MAX_PACKETS))
+        except (TypeError, ValueError):
+            return DEFAULT_MAX_PACKETS
 
     def storage_dir(self, repository_root: str) -> str:
         configured = (self.data.get("storage", {}) or {}).get("dir", DEFAULT_STORAGE_RELDIR)

@@ -5,7 +5,15 @@
 # belongs in this file, never in core package code.
 
 storage:
+  # Must resolve beneath .evidence-compiler/ — the hook-safe launcher refuses
+  # to run (fail-open, nothing injected) if this escapes that boundary.
   dir: .evidence-compiler/packets
+
+# Bounded packet retention, applied by `evidence hook-safe` after each
+# successful persist: the newest max_packets files are kept, older packets
+# are deleted. Set 0 to disable retention entirely.
+retention:
+  max_packets: 250
 
 # Adapter end-to-end hard safety ceiling (ms). Operational target is p95 < 1s;
 # this is the absolute ceiling (context-brief spec §5).

@@ -59,6 +59,26 @@ error, empty result, or deadline expiry it injects nothing, logs to
 `.evidence-compiler/logs/hook.log`, and exits 0, so it can never block or fail
 your Claude Code session.
 
+`evidence hook-safe` is the hardened launcher over the same adapter path and
+the recommended hook command. On top of the `hook` contract it adds:
+
+- **Byte-exact UTF-8**: stdin is read as bytes and the response is written as
+  encoded bytes, so arbitrary multi-byte content survives the pipe unchanged.
+- **Storage-path gate**: the configured `storage.dir` must resolve (symlinks
+  included) beneath `<repo>/.evidence-compiler/`; otherwise it logs
+  `storage_dir_unsafe` and injects nothing.
+- **Bounded retention**: after each successful persist, only the newest
+  `retention.max_packets` packet files are kept (default 250; `0` disables).
+  Only files matching the packet-name contract in the storage directory
+  itself are eligible — no recursion, symlinks never followed or deleted, and
+  a retention failure never suppresses a valid injection.
+- **Sanitized diagnostics**: every non-success outcome appends one line
+  (timestamp + stable category + short detail) to
+  `.evidence-compiler/logs/hook.log`. Prompt text, evidence text, and
+  environment values are never logged.
+- **Off switches**: `EVIDENCE_HOOK=0` (canonical) or `BIMP_EVIDENCE_HOOK=0`
+  (compatibility alias) silently disable it.
+
 `evidence init` prints the exact hook block to add to your project's
 `.claude/settings.json`; a standalone copy also lives in
 [templates/claude-settings.json](templates/claude-settings.json). After adding

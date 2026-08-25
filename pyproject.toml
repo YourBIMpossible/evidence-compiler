@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "evidence-compiler"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Local, deterministic evidence compilation layer for AI coding agents"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -39,6 +39,9 @@ Documentation = "https://github.com/YourBIMpossible/evidence-compiler/tree/maste
 
 [tool.setuptools]
 package-dir = { "" = "src" }
+
+[tool.setuptools.dynamic]
+version = { attr = "evidence_compiler.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]

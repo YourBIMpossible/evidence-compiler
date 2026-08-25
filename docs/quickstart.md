@@ -115,7 +115,7 @@ silently lying to you.
 ## Next
 
 - [README](../README.md) for the full CLI surface and the Claude Code
-  Desktop hook (`evidence hook`) that injects the brief automatically on
+  Desktop hook (`evidence hook-safe`) that injects the brief automatically on
   every prompt.
 - [docs/specifications/evidence-packet-v1.md](specifications/evidence-packet-v1.md)
   and [docs/specifications/context-brief-v1.md](specifications/context-brief-v1.md)

@@ -6,6 +6,8 @@ Subcommands:
 - ``replay``   minimal text report over a persisted packet (build brief section 8).
 - ``init``     scaffold ``.evidence-compiler/config.yaml`` from the template.
 - ``hook``     Claude Code Desktop ``UserPromptSubmit`` adapter (fail-open).
+- ``hook-safe`` hardened launcher over the same adapter path: byte-exact
+  UTF-8, storage-path gate, bounded retention, sanitized diagnostics.
 """
 
 from __future__ import annotations
@@ -43,6 +45,12 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("hook", help="Claude Code Desktop UserPromptSubmit adapter (reads stdin)")
 
+    sub.add_parser(
+        "hook-safe",
+        help="hardened UserPromptSubmit launcher: fail-open, byte-exact UTF-8, "
+        "storage-path gate, bounded retention, sanitized diagnostics (reads stdin)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "compile":
@@ -55,6 +63,10 @@ def main(argv: list[str] | None = None) -> int:
         from .integrations.claude_code import main as hook_main
 
         return hook_main()
+    if args.command == "hook-safe":
+        from .integrations.hook_safe import main as hook_safe_main
+
+        return hook_safe_main()
 
     parser.print_help()
     return 0

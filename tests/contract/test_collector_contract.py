@@ -15,7 +15,6 @@ import pytest
 
 from evidence_compiler.collectors.base import (
     EvidenceResult,
-    RawClaim,
     run_collector_safely,
 )
 from evidence_compiler.collectors.git import GitCollector

@@ -99,6 +99,18 @@ def extract_symbols(prompt: str, active_file: str | None = None) -> list[str]:
             # (``User-Agent`` → ``user_agent``). The hyphen components are
             # never admitted as peer symbols: splitting them into generic
             # words was the flood vector behind dogfood prompts 5/8/10.
+            #
+            # Deliberately unconditional: unlike the plain-token branch below,
+            # this does not run the token through _is_symbolish's stopword
+            # check. Real technical compounds routinely contain a component
+            # that is also an English stopword — ``X-Forwarded-For`` ("for"),
+            # ``If-Modified-Since`` / ``If-None-Match`` ("if") — so rejecting
+            # on stopword-component would drop legitimate HTTP-header-style
+            # identifiers (a false negative, silently losing evidence). The
+            # accepted trade-off is the reverse, bounded false positive: prose
+            # that happens to be Title-Case-hyphenated (``Off-By-One``) can
+            # still take one of the 12 symbol slots and one ripgrep query,
+            # which downstream ranking / no-match filtering absorbs.
             _admit(token)
             _admit(token.lower().replace("-", "_"))
         else:
@@ -109,11 +121,11 @@ def extract_symbols(prompt: str, active_file: str | None = None) -> list[str]:
             # appears verbatim in source; derive only the member name so the
             # definition is matchable. The leading identifier is deliberately
             # not derived — class names like ``Response`` are generic enough
-            # to flood the lexical lane. The member keeps the same prose
-            # guard the derivation has always used.
+            # to flood the lexical lane. The member goes through the same
+            # validator as any plain token so the two paths cannot drift.
             if "." in token:
                 member = token.rsplit(".", 1)[1]
-                if member.lower() not in _STOPWORDS and len(member) >= 3:
+                if _is_symbolish(member, called, backticked):
                     _admit(member)
         if len(out) >= _MAX_SYMBOLS:
             break

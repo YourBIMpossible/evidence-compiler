@@ -16,9 +16,15 @@ process on the hook path (no Node or shell wrapper doing safety work):
 - Apply bounded packet retention after a successful persist (config
   ``retention.max_packets``, default 250, ``0`` disables); retention failures
   never suppress a valid injection.
-- Record every non-success outcome as one sanitized line (timestamp +
-  category + short detail) in ``.evidence-compiler/logs/hook.log``. Prompt
-  text, evidence text, and environment values are never written there.
+- Resolve the repository root from ``CLAUDE_PROJECT_DIR`` when set, else by
+  walking up from the hook payload's ``cwd``; a payload ``cwd`` outside the
+  resolved root is refused (``cwd_outside_root``) so evidence from one
+  repository can never be injected under another's identity.
+- Record every outcome as one sanitized line (timestamp + category + short
+  detail) in ``.evidence-compiler/logs/hook.log`` — ``injected`` with token
+  count / latency / packet filename on success, a stable failure category
+  otherwise. Prompt text, evidence text, and environment values are never
+  written there.
 
 Disable with ``EVIDENCE_HOOK=0`` (canonical) or ``BIMP_EVIDENCE_HOOK=0``
 (compatibility alias); either alone silences the hook entirely.
@@ -54,13 +60,43 @@ def _disabled() -> bool:
     )
 
 
-def _repo_root() -> str:
+def _repo_root(cwd: str | None = None) -> str:
+    """Repository root: ``CLAUDE_PROJECT_DIR`` if set, else walk up from ``cwd``
+    (the hook payload's ``cwd`` once parsed; the process cwd before that)."""
     env = os.environ.get("CLAUDE_PROJECT_DIR")
     if env and env.strip():
         return os.path.abspath(env)
-    from .claude_code import _find_repo_root
+    return _find_repo_root(cwd or os.getcwd())
 
-    return _find_repo_root(os.getcwd())
+
+def _within(child: str, parent: str) -> bool:
+    """True when ``child`` is ``parent`` or beneath it (symlinks resolved)."""
+    c = os.path.normcase(os.path.realpath(child))
+    p = os.path.normcase(os.path.realpath(parent))
+    return c == p or c.startswith(p + os.sep)
+
+
+def _find_repo_root(cwd: str) -> str:
+    """Walk up from ``cwd`` looking for a ``.git`` directory or file.
+
+    Falls back to ``cwd`` itself (absolute) if nothing is found or the walk
+    fails for any reason — repo-root detection must never raise.
+    """
+    try:
+        path = os.path.abspath(cwd)
+        while True:
+            if os.path.isdir(os.path.join(path, ".git")) or os.path.isfile(
+                os.path.join(path, ".git")
+            ):
+                return path
+            parent = os.path.dirname(path)
+            if parent == path:
+                return os.path.abspath(cwd)
+            path = parent
+    except Exception as exc:  # noqa: BLE001
+        fallback = os.path.abspath(cwd)
+        _diag(fallback, "repo_root_error", type(exc).__name__)
+        return fallback
 
 
 def _diag(root: str, category: str, detail: str = "") -> None:
@@ -81,14 +117,19 @@ def _diag(root: str, category: str, detail: str = "") -> None:
         pass
 
 
-def _read_stdin_bytes() -> bytes:
+def _read_stdin_bytes(root: str) -> bytes | None:
+    """Read raw stdin. ``None`` means the read itself failed — distinct from
+    ``b""``, a genuinely empty invocation, so a real I/O error is never
+    miscategorized downstream as ``empty_input``.
+    """
     try:
         buf = getattr(sys.stdin, "buffer", None)
         if buf is not None:
             return buf.read()
         return sys.stdin.read().encode("utf-8", "replace")
-    except Exception:  # noqa: BLE001
-        return b""
+    except Exception as exc:  # noqa: BLE001
+        _diag(root, "stdin_read_error", type(exc).__name__)
+        return None
 
 
 def _parse_payload(raw: bytes, root: str) -> dict | None:
@@ -128,8 +169,12 @@ def _run() -> None:
     if _disabled():
         return
 
-    root = _repo_root()
-    payload = _parse_payload(_read_stdin_bytes(), root)
+    started = time.perf_counter()
+    root = _repo_root()  # pre-payload: only used to place early diagnostics
+    raw = _read_stdin_bytes(root)
+    if raw is None:
+        return  # read failure already logged as stdin_read_error
+    payload = _parse_payload(raw, root)
     if payload is None:
         return
 
@@ -137,7 +182,15 @@ def _run() -> None:
     if not prompt.strip():
         return  # valid no-op: nothing to scope, nothing to log
 
-    cwd = str(payload.get("cwd") or os.getcwd())
+    cwd = os.path.abspath(str(payload.get("cwd") or os.getcwd()))
+    root = _repo_root(cwd)
+    if not _within(cwd, root):
+        _diag(
+            root,
+            "cwd_outside_root",
+            "hook payload cwd is not inside the resolved repository root; refusing injection",
+        )
+        return
     session_id = payload.get("session_id")
 
     storage_dir = _storage_dir_if_safe(root)
@@ -185,6 +238,9 @@ def _run() -> None:
 
     result = result_box.get("result")
     if result is None:
+        # Worker ended without a result or an Exception (e.g. a BaseException
+        # such as SystemExit escaped it): never fall through silently.
+        _diag(root, "compiler_error", "worker finished without producing a result")
         return
     if result.packet.identity.repository_root != os.path.abspath(root).replace("\\", "/"):
         _diag(root, "identity_mismatch", "packet was compiled for a different repository root")
@@ -205,6 +261,11 @@ def _run() -> None:
     except Exception:  # noqa: BLE001
         _diag(root, "stdout_write_error")
         return
+
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    tokens = getattr(getattr(result.packet, "budget", None), "injected_tokens", "?")
+    packet_name = os.path.basename(str(getattr(result, "storage_path", "") or ""))
+    _diag(root, "injected", f"{tokens} tok {elapsed_ms}ms packet={packet_name}")
 
     _apply_retention(root, storage_dir, config)
 

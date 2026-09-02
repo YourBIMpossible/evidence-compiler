@@ -17,6 +17,8 @@ from dataclasses import asdict, dataclass, field, fields, is_dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from .refs import split_line_suffix
+
 # Logical schema major version. Storage encodes this; readers reject an
 # unknown *major* version rather than silently coercing (spec §6).
 SCHEMA_VERSION = 1
@@ -173,16 +175,12 @@ def _ref_sort_key(ref: str) -> tuple[str, int]:
 
     Slashes are normalized so platform path separators never perturb the
     order, and the line is compared numerically so ``:100`` follows ``:9``
-    rather than sorting lexically before it.
+    rather than sorting lexically before it. Splitting uses the same rule as
+    the collector boundary (:func:`evidence_compiler.refs.split_line_suffix`);
+    a reference with no (or a malformed) suffix sorts whole with line ``-1``.
     """
-    norm = ref.replace("\\", "/")
-    path, sep, line = norm.partition(":")
-    if sep:
-        try:
-            return (path, int(line))
-        except ValueError:
-            return (path, -1)
-    return (norm, -1)
+    path, _suffix, line = split_line_suffix(ref.replace("\\", "/"))
+    return (path, -1 if line is None else line)
 
 
 def canonical_item_key(item: "EvidenceItem") -> tuple:

@@ -5,9 +5,11 @@ Subcommands:
 - ``compile``  run the critical path for a prompt and print the brief.
 - ``replay``   minimal text report over a persisted packet (build brief section 8).
 - ``init``     scaffold ``.evidence-compiler/config.yaml`` from the template.
-- ``hook``     Claude Code Desktop ``UserPromptSubmit`` adapter (fail-open).
-- ``hook-safe`` hardened launcher over the same adapter path: byte-exact
-  UTF-8, storage-path gate, bounded retention, sanitized diagnostics.
+- ``hook``     deprecated; a thin shim over ``hook-safe`` kept only for
+  existing configurations. Point new setups at ``hook-safe`` instead.
+- ``hook-safe`` recommended Claude Code Desktop ``UserPromptSubmit`` adapter:
+  fail-open, byte-exact UTF-8, storage-path gate, bounded retention,
+  sanitized diagnostics.
 """
 
 from __future__ import annotations
@@ -43,11 +45,15 @@ def main(argv: list[str] | None = None) -> int:
     p_init.add_argument("--repo", default=os.getcwd())
     p_init.add_argument("--force", action="store_true")
 
-    sub.add_parser("hook", help="Claude Code Desktop UserPromptSubmit adapter (reads stdin)")
+    sub.add_parser(
+        "hook",
+        help="[deprecated: use hook-safe] Claude Code Desktop UserPromptSubmit "
+        "adapter (reads stdin); now a thin shim over hook-safe",
+    )
 
     sub.add_parser(
         "hook-safe",
-        help="hardened UserPromptSubmit launcher: fail-open, byte-exact UTF-8, "
+        help="recommended UserPromptSubmit launcher: fail-open, byte-exact UTF-8, "
         "storage-path gate, bounded retention, sanitized diagnostics (reads stdin)",
     )
 

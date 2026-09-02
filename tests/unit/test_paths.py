@@ -31,6 +31,12 @@ def test_reference_line_col_suffix_preserved():
     assert normalize_reference("C:/repo/src/a.py:42:7", ROOT) == "src/a.py:42:7"
 
 
+def test_reference_with_extra_numeric_segments_is_not_split_mid_path():
+    # Shares one rule with packet._ref_sort_key: three numeric segments are
+    # not a ``path:line[:col]`` reference, so no suffix is peeled off.
+    assert normalize_reference("C:/repo/src/a.py:1:2:3", ROOT) == "src/a.py:1:2:3"
+
+
 def test_outside_repo_not_falsely_relativized():
     out = normalize_path("D:/other/x.py", "C:/repo")
     assert out.endswith("other/x.py")

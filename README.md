@@ -52,15 +52,13 @@ EvidencePacket is the system of record) and prints the derived brief to stdout.
 
 ## Claude Code Desktop hook (dogfooding)
 
-The `evidence hook` subcommand is a fail-open `UserPromptSubmit` adapter: it
-reads the hook payload on stdin, compiles a packet for the active repo, and — on
-success with a non-empty brief — injects it via `additionalContext`. On any
-error, empty result, or deadline expiry it injects nothing, logs to
-`.evidence-compiler/logs/hook.log`, and exits 0, so it can never block or fail
-your Claude Code session.
-
-`evidence hook-safe` is the hardened launcher over the same adapter path and
-the recommended hook command. On top of the `hook` contract it adds:
+`evidence hook-safe` is a fail-open `UserPromptSubmit` adapter and the
+recommended hook command: it reads the hook payload on stdin, compiles a
+packet for the active repo, and — on success with a non-empty brief —
+injects it via `additionalContext`. On any error, empty result, or deadline
+expiry it injects nothing, logs to `.evidence-compiler/logs/hook.log`, and
+exits 0, so it can never block or fail your Claude Code session. On top of
+that base contract it adds:
 
 - **Byte-exact UTF-8**: stdin is read as bytes and the response is written as
   encoded bytes, so arbitrary multi-byte content survives the pipe unchanged.
@@ -72,12 +70,23 @@ the recommended hook command. On top of the `hook` contract it adds:
   Only files matching the packet-name contract in the storage directory
   itself are eligible — no recursion, symlinks never followed or deleted, and
   a retention failure never suppresses a valid injection.
-- **Sanitized diagnostics**: every non-success outcome appends one line
-  (timestamp + stable category + short detail) to
-  `.evidence-compiler/logs/hook.log`. Prompt text, evidence text, and
-  environment values are never logged.
+- **Sanitized diagnostics**: every outcome appends one line (timestamp +
+  stable category + short detail) to `.evidence-compiler/logs/hook.log` —
+  `injected` with token count, latency and packet filename on success, a
+  failure category otherwise. Prompt text, evidence text, and environment
+  values are never logged.
+- **Repo-root guard**: the root comes from `CLAUDE_PROJECT_DIR` when set,
+  otherwise from the hook payload's `cwd`; a payload `cwd` outside that root
+  is refused (`cwd_outside_root`) rather than compiled against.
 - **Off switches**: `EVIDENCE_HOOK=0` (canonical) or `BIMP_EVIDENCE_HOOK=0`
   (compatibility alias) silently disable it.
+
+`evidence hook` still exists as a thin shim over `hook-safe`, kept so
+existing `.claude/settings.json` configurations keep working. It is
+deprecated — point new setups at `evidence hook-safe`. Two things change for
+existing `hook` users: the off switches above now apply to it too, and
+`CLAUDE_PROJECT_DIR` (when set) wins over the payload `cwd` for repo-root
+resolution, with an out-of-root `cwd` refused instead of silently compiled.
 
 `evidence init` prints the exact hook block to add to your project's
 `.claude/settings.json`; a standalone copy also lives in

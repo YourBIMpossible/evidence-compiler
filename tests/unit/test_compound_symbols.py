@@ -64,6 +64,32 @@ def test_multi_part_hyphen_compound():
     assert "Request" not in syms
 
 
+def test_compound_with_stopword_component_still_admitted():
+    # "for" and "if" are English stopwords, but X-Forwarded-For and
+    # If-Modified-Since are real HTTP header names. The compound branch
+    # intentionally skips the plain-token stopword guard (_is_symbolish) so
+    # these are not silently dropped — the accepted trade-off is documented
+    # at the call site in scoping.py.
+    syms = scoping.extract_symbols("Does the proxy set X-Forwarded-For correctly?")
+    assert "X-Forwarded-For" in syms
+    assert "x_forwarded_for" in syms
+
+    syms = scoping.extract_symbols("Check the If-Modified-Since header handling")
+    assert "If-Modified-Since" in syms
+    assert "if_modified_since" in syms
+
+
+def test_title_case_prose_compound_is_accepted_tradeoff():
+    # Title-Case-hyphenated prose that is not a real technical compound (no
+    # stopword guard applies here, unlike the plain-token branch) is still
+    # admitted as a candidate. This is a bounded, accepted false positive:
+    # one of 12 symbol slots and one ripgrep query, absorbed by downstream
+    # ranking rather than rejected here.
+    syms = scoping.extract_symbols("Is this an Off-By-One error in the loop bound?")
+    assert "Off-By-One" in syms
+    assert "off_by_one" in syms
+
+
 def test_lowercase_hyphen_prose_not_treated_as_compound():
     # "fail-open" / "well-known" style prose keeps its existing (non-symbol)
     # treatment: no compound candidate, no snake_case derivation.

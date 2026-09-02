@@ -40,6 +40,15 @@ def test_dotted_symbol_derives_member_not_head():
     assert syms2 == ["AlphaService.compute_all", "compute_all"]
 
 
+def test_dotted_member_uses_the_shared_symbol_validator():
+    # A plain lowercase member ("data") is exactly what _is_symbolish rejects
+    # for a standalone token; the derived member must not bypass that rule.
+    assert scoping.extract_symbols("How does Response.data get parsed?") == ["Response.data"]
+    # ...while a member that _is_symbolish accepts via the call-site shortcut
+    # is still derived even though it is short.
+    assert scoping.extract_symbols("Why does Frame.at() misbehave?") == ["Frame.at", "at"]
+
+
 def test_symbol_extraction_drops_prose():
     syms = scoping.extract_symbols("please help me understand the code here")
     assert syms == []

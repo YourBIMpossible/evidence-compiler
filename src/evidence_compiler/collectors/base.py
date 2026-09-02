@@ -9,11 +9,12 @@ exception or overrun into a well-formed ``error`` / ``timeout`` result.
 from __future__ import annotations
 
 import os
-import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
+
+from ..refs import split_line_suffix
 
 # --------------------------------------------------------------------------
 # Context in
@@ -122,9 +123,6 @@ def _elapsed_ms(start: float) -> float:
 # Path normalization (interface spec §4: repo-relative POSIX; accept Windows)
 # --------------------------------------------------------------------------
 
-_LINE_SUFFIX = re.compile(r"^(?P<path>.*?)(?P<suffix>:\d+(?::\d+)?)?$")
-
-
 def normalize_path(path: str, repository_root: str) -> str:
     """Return a repo-relative, POSIX-style path when ``path`` is inside the repo.
 
@@ -157,11 +155,7 @@ def normalize_reference(reference: str, repository_root: str) -> str:
     """Normalize a ``path`` or ``path:line[:col]`` reference, preserving the suffix."""
     if not reference:
         return reference
-    match = _LINE_SUFFIX.match(reference)
-    if not match:
-        return normalize_path(reference, repository_root)
-    path_part = match.group("path")
-    suffix = match.group("suffix") or ""
+    path_part, suffix, _line = split_line_suffix(reference)
     return normalize_path(path_part, repository_root) + suffix
 
 

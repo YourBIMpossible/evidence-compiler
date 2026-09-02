@@ -74,6 +74,26 @@ def test_empty_stdin_fails_open_and_logs(monkeypatch, capsysbinary, golden_repo)
     assert len(lines) == 1 and "hook-safe:empty_input" in lines[0]
 
 
+def test_stdin_read_error_is_logged_distinctly_from_empty_input(monkeypatch, capsysbinary, golden_repo):
+    # A genuine I/O error while reading stdin must not be silently swallowed
+    # and miscategorized downstream as an ordinary empty invocation.
+    class BrokenBuffer:
+        def read(self):
+            raise OSError("pipe broken")
+
+    class BrokenStdin:
+        buffer = BrokenBuffer()
+
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", golden_repo)
+    monkeypatch.setattr(sys, "stdin", BrokenStdin())
+    assert hook_safe.main() == 0
+    assert capsysbinary.readouterr().out == b""
+    lines = _log_lines(golden_repo)
+    assert len(lines) == 1
+    assert "hook-safe:stdin_read_error OSError" in lines[0]
+    assert "empty_input" not in lines[0]
+
+
 def test_malformed_stdin_fails_open_and_logs(monkeypatch, capsysbinary, golden_repo):
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", golden_repo)
     _feed(monkeypatch, b"{not json")
@@ -109,6 +129,60 @@ def test_success_injects_valid_hook_json(monkeypatch, capsysbinary, golden_repo)
     inner = parsed["hookSpecificOutput"]
     assert inner["hookEventName"] == "UserPromptSubmit"
     assert inner["additionalContext"].strip()
+
+
+def test_success_logs_one_injected_line(monkeypatch, capsysbinary, golden_repo):
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", golden_repo)
+    _feed_payload(monkeypatch, golden_repo, "where is alpha defined")
+    assert hook_safe.main() == 0
+    assert capsysbinary.readouterr().out
+    lines = _log_lines(golden_repo)
+    assert len(lines) == 1
+    assert "hook-safe:injected" in lines[0]
+    assert " tok " in lines[0] and "ms packet=" in lines[0]
+    assert "alpha" not in lines[0]  # never the prompt
+
+
+def test_repo_root_comes_from_payload_cwd_when_env_unset(monkeypatch, capsysbinary, golden_repo, tmp_path):
+    # Process cwd is an unrelated directory; the payload names the repo. The
+    # packet and log must land in the payload's repo, not the process cwd.
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    _feed_payload(monkeypatch, golden_repo, "where is alpha defined")
+    assert hook_safe.main() == 0
+    assert json.loads(capsysbinary.readouterr().out.decode("utf-8"))["hookSpecificOutput"]
+    assert os.path.isdir(os.path.join(golden_repo, ".evidence-compiler", "packets"))
+    assert not (elsewhere / ".evidence-compiler").exists()
+    assert any("hook-safe:injected" in line for line in _log_lines(golden_repo))
+
+
+def test_payload_cwd_outside_project_dir_is_refused(monkeypatch, capsysbinary, golden_repo, tmp_path):
+    # CLAUDE_PROJECT_DIR says repo A; the payload cwd is a different repo B.
+    # Compiling repo B's git state under repo A's identity must never happen.
+    other = tmp_path / "other-repo"
+    (other / ".git").mkdir(parents=True)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", golden_repo)
+    _feed_payload(monkeypatch, str(other), "where is alpha defined")
+    assert hook_safe.main() == 0
+    assert capsysbinary.readouterr().out == b""
+    lines = _log_lines(golden_repo)
+    assert len(lines) == 1 and "hook-safe:cwd_outside_root" in lines[0]
+    assert not os.path.isdir(os.path.join(golden_repo, ".evidence-compiler", "packets"))
+
+
+def test_worker_ending_without_result_is_logged(monkeypatch, capsysbinary, golden_repo):
+    def bail(**kwargs):
+        raise SystemExit(3)  # BaseException: escapes the worker's ``except Exception``
+
+    monkeypatch.setattr(compiler_mod, "compile_packet", bail)
+    monkeypatch.setattr(hook_safe.threading, "excepthook", lambda args: None)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", golden_repo)
+    _feed_payload(monkeypatch, golden_repo, "where is alpha defined")
+    assert hook_safe.main() == 0
+    assert capsysbinary.readouterr().out == b""
+    lines = _log_lines(golden_repo)
+    assert len(lines) == 1 and "hook-safe:compiler_error" in lines[0]
 
 
 def test_multibyte_brief_roundtrips_byte_exactly(monkeypatch, capsysbinary, golden_repo):

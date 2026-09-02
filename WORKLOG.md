@@ -12,6 +12,5 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Needs your call
 
-- Push lane `claude/evidence-compiler-audit-81162b` to `origin` and/or open a
-  PR for the audit + code-review fixes. Held at closeout: pushing leaves this
-  machine (a human-decision gate), and no upstream is configured yet.
+- (resolved 2026-09-02) Pushed lane `claude/evidence-compiler-audit-81162b` to
+  `origin` and opened PR #6 against `master` for the audit + code-review fixes.

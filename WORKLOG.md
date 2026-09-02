@@ -5,10 +5,9 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Roadmap / queued
 
-- Pre-existing ruff `F401` in `tests/contract/test_collector_contract.py:18`
-  (`RawClaim` imported but unused). Out of scope for the 2026-09-01 incremental
-  audit — the file was not modified this session. One-line fix: drop the unused
-  import (auto-fixable with `ruff check --fix`).
+- (resolved 2026-09-02) Pre-existing ruff `F401` in
+  `tests/contract/test_collector_contract.py:18` (`RawClaim` imported but
+  unused) — dropped the unused import on lane `claude/ruff-f401-cleanup`.
 
 ## Needs your call
 

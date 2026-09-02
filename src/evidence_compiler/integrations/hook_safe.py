@@ -1,7 +1,10 @@
 """Hardened Claude Code hook launcher — ``evidence hook-safe``.
 
-The strict superset of the ``hook`` adapter contract, intended to be the ONLY
-process on the hook path (no Node or shell wrapper doing safety work):
+A hardened evolution of the ``hook`` adapter contract, intended to be the ONLY
+process on the hook path (no Node or shell wrapper doing safety work). It is
+not a strict superset: it adds refusals the base contract did not have (an
+out-of-root payload ``cwd``, an unsafe storage dir, and the ``EVIDENCE_HOOK``
+off switch), so some inputs the old ``hook`` compiled are now declined:
 
 - Read the hook payload from stdin **as bytes**; decode/parse defensively.
 - Exit 0 on every path, expected or not — a ``UserPromptSubmit`` hook that
@@ -149,15 +152,14 @@ def _parse_payload(raw: bytes, root: str) -> dict | None:
     return data
 
 
-def _storage_dir_if_safe(root: str) -> str | None:
+def _storage_dir_if_safe(root: str, config) -> str | None:
     """Resolved storage dir, or ``None`` if it escapes ``.evidence-compiler/``.
 
     Both sides are fully resolved (``realpath``) so relative, absolute, ``..``,
-    and symlink escapes are all caught by one containment check.
+    and symlink escapes are all caught by one containment check. ``config`` is
+    passed in so the per-repo config is parsed once per invocation, not twice.
     """
-    from ..config import load_config
-
-    configured = load_config(root).storage_dir(root)
+    configured = config.storage_dir(root)
     target = os.path.normcase(os.path.realpath(configured))
     boundary = os.path.normcase(os.path.realpath(os.path.join(root, ".evidence-compiler")))
     if target == boundary or target.startswith(boundary + os.sep):
@@ -170,7 +172,13 @@ def _run() -> None:
         return
 
     started = time.perf_counter()
-    root = _repo_root()  # pre-payload: only used to place early diagnostics
+    # Pre-payload root: only used to place the early diagnostics below
+    # (stdin_read_error / empty_input / malformed_input), which necessarily
+    # happen before a payload cwd exists. CLAUDE_PROJECT_DIR (the recommended
+    # setup) makes this the correct repo. With the env var unset (deprecated
+    # ``hook`` path) there is no better source than the process cwd — the
+    # payload has not been read, so its repo is unknowable here.
+    root = _repo_root()
     raw = _read_stdin_bytes(root)
     if raw is None:
         return  # read failure already logged as stdin_read_error
@@ -182,8 +190,17 @@ def _run() -> None:
     if not prompt.strip():
         return  # valid no-op: nothing to scope, nothing to log
 
-    cwd = os.path.abspath(str(payload.get("cwd") or os.getcwd()))
-    root = _repo_root(cwd)
+    payload_cwd = str(payload.get("cwd") or "").strip()
+    if payload_cwd:
+        cwd = os.path.abspath(payload_cwd)
+        root = _repo_root(cwd)
+    else:
+        # No cwd in the payload: fall back to the resolved root itself, not the
+        # hook process's launch directory. Using os.getcwd() here could sit
+        # outside CLAUDE_PROJECT_DIR and trip the containment check below,
+        # refusing a legitimate prompt (cwd_outside_root) over a missing field.
+        root = _repo_root()
+        cwd = root
     if not _within(cwd, root):
         _diag(
             root,
@@ -193,7 +210,11 @@ def _run() -> None:
         return
     session_id = payload.get("session_id")
 
-    storage_dir = _storage_dir_if_safe(root)
+    from ..config import load_config
+
+    config = load_config(root)  # parsed once; reused for the storage gate + retention
+
+    storage_dir = _storage_dir_if_safe(root, config)
     if storage_dir is None:
         _diag(
             root,
@@ -202,9 +223,6 @@ def _run() -> None:
         )
         return
 
-    from ..config import load_config
-
-    config = load_config(root)
     deadline_ms = config.deadline_ms
 
     result_box: dict = {}

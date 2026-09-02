@@ -119,13 +119,27 @@ def extract_symbols(prompt: str, active_file: str | None = None) -> list[str]:
             _admit(token)
             # A dotted member expression (``Response.iter_content``) rarely
             # appears verbatim in source; derive only the member name so the
-            # definition is matchable. The leading identifier is deliberately
-            # not derived — class names like ``Response`` are generic enough
-            # to flood the lexical lane. The member goes through the same
-            # validator as any plain token so the two paths cannot drift.
+            # definition (``def iter_content``) is matchable. The leading
+            # identifier is deliberately not derived — class names like
+            # ``Response`` are generic enough to flood the lexical lane.
+            #
+            # The dot is itself the symbol signal, so the member is admitted
+            # on a looser rule than a standalone token: any call/backtick
+            # target, or a non-stopword identifier of length >= 3. Requiring
+            # the member to independently pass _is_symbolish would drop real
+            # lowercase method names (``Parser.tokenize`` -> ``tokenize``,
+            # ``db.connect`` -> ``connect``) that carry no underscore or
+            # camelCase hump, losing exactly the ``def`` match this derivation
+            # exists to find. A generic member (``Response.data`` -> ``data``)
+            # is the accepted, bounded false positive — one of 12 slots and one
+            # ripgrep query, absorbed by downstream ranking / no-match filtering.
             if "." in token:
                 member = token.rsplit(".", 1)[1]
-                if _is_symbolish(member, called, backticked):
+                if (
+                    member in called
+                    or member in backticked
+                    or (len(member) >= 3 and member.lower() not in _STOPWORDS)
+                ):
                     _admit(member)
         if len(out) >= _MAX_SYMBOLS:
             break

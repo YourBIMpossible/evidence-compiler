@@ -40,12 +40,25 @@ def test_dotted_symbol_derives_member_not_head():
     assert syms2 == ["AlphaService.compute_all", "compute_all"]
 
 
-def test_dotted_member_uses_the_shared_symbol_validator():
-    # A plain lowercase member ("data") is exactly what _is_symbolish rejects
-    # for a standalone token; the derived member must not bypass that rule.
-    assert scoping.extract_symbols("How does Response.data get parsed?") == ["Response.data"]
-    # ...while a member that _is_symbolish accepts via the call-site shortcut
-    # is still derived even though it is short.
+def test_dotted_member_derivation_favors_recall():
+    # The dot is the symbol signal, so a derived member uses a looser rule than
+    # a standalone token: a call/backtick target, or any non-stopword
+    # identifier of length >= 3. A lowercase method name with no underscore or
+    # camelCase hump (which _is_symbolish alone would reject) must still be
+    # derived so ripgrep can match its ``def`` — this is the recall the shared
+    # standalone validator was silently dropping.
+    assert scoping.extract_symbols("why does Parser.tokenize fail") == [
+        "Parser.tokenize",
+        "tokenize",
+    ]
+    # A generic lowercase member ("data") is the accepted, bounded false
+    # positive that comes with favouring recall — derived, not rejected.
+    assert scoping.extract_symbols("How does Response.data get parsed?") == [
+        "Response.data",
+        "data",
+    ]
+    # A short member ("at", length 2, and a stopword) is admissible only via
+    # the call-site shortcut, and is still derived because of the call.
     assert scoping.extract_symbols("Why does Frame.at() misbehave?") == ["Frame.at", "at"]
 
 

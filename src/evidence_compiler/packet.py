@@ -193,7 +193,11 @@ def canonical_item_key(item: "EvidenceItem") -> tuple:
     always sorts identically across runs — the property F-D1 exposed as broken.
     """
     claim = item.source_claim
-    refs = tuple(_ref_sort_key(r) for r in sorted(claim.references, key=_ref_sort_key))
+    # Decorate-sort-undecorate: _ref_sort_key returns a directly-sortable
+    # ``(path, line)`` key, so sorting those keys yields the same order as
+    # ``sorted(..., key=_ref_sort_key)`` while computing each key exactly once
+    # (the previous form ran _ref_sort_key twice per reference).
+    refs = tuple(sorted(_ref_sort_key(r) for r in claim.references))
     return (
         refs,
         item.provenance.collector,

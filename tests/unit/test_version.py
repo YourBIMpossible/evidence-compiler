@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import importlib.metadata
 
+import pytest
+
 import evidence_compiler
 
 
@@ -20,5 +22,5 @@ def test_distribution_version_matches_package_constant() -> None:
     except importlib.metadata.PackageNotFoundError:
         # Running from a source tree without an install (e.g. PYTHONPATH-only
         # worktree runs); there is no second copy to drift, nothing to check.
-        return
+        pytest.skip("evidence-compiler is not installed; no distribution metadata to compare")
     assert dist_version == evidence_compiler.__version__

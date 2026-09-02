@@ -18,6 +18,7 @@ from evidence_compiler.packet import (
     ScoreComponents,
     SourceClaim,
     Task,
+    _ref_sort_key,
 )
 
 
@@ -97,3 +98,43 @@ def test_identity_binding_mandatory_fields_present():
     for key in ("repository_root", "worktree_id", "head", "session_id", "turn_id"):
         assert key in d["identity"]
     assert "packet_id" in d
+
+
+# --- _ref_sort_key: the colon in a reference is not always the line separator ---
+
+
+def test_ref_sort_key_plain_reference():
+    assert _ref_sort_key("src/alpha.py:12") == ("src/alpha.py", 12)
+
+
+def test_ref_sort_key_numeric_line_sorts_before_lexical():
+    # ":100" must sort after ":9" numerically, not lexically ("100" < "9").
+    assert _ref_sort_key("a.py:9") < _ref_sort_key("a.py:100")
+
+
+def test_ref_sort_key_no_line_suffix():
+    assert _ref_sort_key("README.md") == ("README.md", -1)
+
+
+def test_ref_sort_key_windows_drive_letter_is_not_mistaken_for_a_line_colon():
+    # The FIRST colon here is the drive separator, not a line number — the
+    # path must stay whole and the trailing ":10" must still parse numerically.
+    assert _ref_sort_key("C:/foo/bar.py:10") == ("C:/foo/bar.py", 10)
+
+
+def test_ref_sort_key_windows_drive_letter_without_line_suffix():
+    assert _ref_sort_key("C:/foo/bar.py") == ("C:/foo/bar.py", -1)
+
+
+def test_ref_sort_key_backslash_paths_normalized_before_splitting():
+    assert _ref_sort_key("C:\\foo\\bar.py:10") == ("C:/foo/bar.py", 10)
+
+
+def test_ref_sort_key_line_and_column_suffix():
+    assert _ref_sort_key("a.py:12:7") == ("a.py", 12)
+
+
+def test_ref_sort_key_malformed_extra_numeric_segments_sorts_whole():
+    # Three numeric segments fit no ``path:line[:col]`` reading; the reference
+    # must not be split at an interior colon into a corrupted path/line pair.
+    assert _ref_sort_key("a.py:1:2:3") == ("a.py:1:2:3", -1)

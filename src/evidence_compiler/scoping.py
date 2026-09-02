@@ -99,6 +99,18 @@ def extract_symbols(prompt: str, active_file: str | None = None) -> list[str]:
             # (``User-Agent`` → ``user_agent``). The hyphen components are
             # never admitted as peer symbols: splitting them into generic
             # words was the flood vector behind dogfood prompts 5/8/10.
+            #
+            # Deliberately unconditional: unlike the plain-token branch below,
+            # this does not run the token through _is_symbolish's stopword
+            # check. Real technical compounds routinely contain a component
+            # that is also an English stopword — ``X-Forwarded-For`` ("for"),
+            # ``If-Modified-Since`` / ``If-None-Match`` ("if") — so rejecting
+            # on stopword-component would drop legitimate HTTP-header-style
+            # identifiers (a false negative, silently losing evidence). The
+            # accepted trade-off is the reverse, bounded false positive: prose
+            # that happens to be Title-Case-hyphenated (``Off-By-One``) can
+            # still take one of the 12 symbol slots and one ripgrep query,
+            # which downstream ranking / no-match filtering absorbs.
             _admit(token)
             _admit(token.lower().replace("-", "_"))
         else:
@@ -107,13 +119,27 @@ def extract_symbols(prompt: str, active_file: str | None = None) -> list[str]:
             _admit(token)
             # A dotted member expression (``Response.iter_content``) rarely
             # appears verbatim in source; derive only the member name so the
-            # definition is matchable. The leading identifier is deliberately
-            # not derived — class names like ``Response`` are generic enough
-            # to flood the lexical lane. The member keeps the same prose
-            # guard the derivation has always used.
+            # definition (``def iter_content``) is matchable. The leading
+            # identifier is deliberately not derived — class names like
+            # ``Response`` are generic enough to flood the lexical lane.
+            #
+            # The dot is itself the symbol signal, so the member is admitted
+            # on a looser rule than a standalone token: any call/backtick
+            # target, or a non-stopword identifier of length >= 3. Requiring
+            # the member to independently pass _is_symbolish would drop real
+            # lowercase method names (``Parser.tokenize`` -> ``tokenize``,
+            # ``db.connect`` -> ``connect``) that carry no underscore or
+            # camelCase hump, losing exactly the ``def`` match this derivation
+            # exists to find. A generic member (``Response.data`` -> ``data``)
+            # is the accepted, bounded false positive — one of 12 slots and one
+            # ripgrep query, absorbed by downstream ranking / no-match filtering.
             if "." in token:
                 member = token.rsplit(".", 1)[1]
-                if member.lower() not in _STOPWORDS and len(member) >= 3:
+                if (
+                    member in called
+                    or member in backticked
+                    or (len(member) >= 3 and member.lower() not in _STOPWORDS)
+                ):
                     _admit(member)
         if len(out) >= _MAX_SYMBOLS:
             break

@@ -1,0 +1,61 @@
+# .claude/review-profile.yaml — repo-local review policy for /review-all
+#
+# The global /review-all skill is the reusable engine; this file is Evidence
+# Compiler's own review policy, risk posture, and verification contract.
+#
+# Posture: this is a deterministic CLI / document-processing tool, NOT a BIM/Revit
+# codebase. BIM and Revit lenses are disabled EXPLICITLY (not by heuristic) so the
+# repo never accrues irrelevant BIM/Revit policy checks — consistent with the
+# Phase-1A charter that keeps BIM/Revit/product policy out of the core. The
+# security lens runs in `deep` mode against a CLI/document-processing threat model,
+# and local autofix is permitted (this repo has no sandbox-commit prohibition).
+
+version: 1
+
+review:
+  default_mode: standard          # quick | standard | deep
+  read_only_default: true
+  allow_autofix: true             # --fix permitted; still never commits/pushes
+  read_only_sandbox: false
+  local_verification:             # run by --ci during the fix loop; never remote CI as a debug loop
+    # EC has no unified verifier script. Its verification IS its CI
+    # (.github/workflows/tests.yml), which installs the editable dev extras
+    # (and ripgrep, which the tool shells out to at runtime) then runs pytest.
+    # The install step keeps --ci reproducible in a fresh checkout/worktree
+    # where deps are not yet provisioned; pytest is the actual verification step.
+    # ripgrep is a runtime system dependency, not a verification command, so it
+    # is intentionally NOT listed here.
+    - python -m pip install -e ".[dev]"
+    - python -m pytest
+  lenses:
+    code-review:     { enabled: true }
+    bim-code-review: { enabled: false }   # charter: no BIM/Revit policy in core — explicit, not heuristic
+    revit-lifecycle: { enabled: false }
+    concurrency:
+      enabled_when:
+        paths: ["**/*async*", "**/*queue*", "**/*worker*", "**/*thread*", "**/*pool*"]
+    security-diff:
+      enabled: true
+      modes: [deep]
+      # Deterministic-CLI / document-processing threat model to weight this repo's
+      # actual risk surface (not web/tenant auth):
+      focus:
+        - path-traversal / unsafe file handling on caller-supplied document paths
+        - shell / subprocess / argument injection in CLI and ripgrep invocation
+        - unsafe deserialization or archive/zip extraction of untrusted inputs
+        - ReDoS / catastrophic backtracking in user-supplied patterns
+        - resource exhaustion & non-determinism (unbounded reads, ordering, encoding)
+        - secrets or absolute-path / environment leakage in outputs, logs, captures
+
+# EC runs no mandatory per-file gate agents; nothing to ingest.
+auto_gates:
+  ingest_if_available: true       # EC declares none today; ingest any that appear later
+  reinvoke: false
+  agents: []
+
+convergence:
+  include_agent_gates: false
+  require_location: true
+  require_failure_path: true
+  min_confidence: medium
+  max_autofix_iterations: 3

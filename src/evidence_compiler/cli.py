@@ -15,6 +15,7 @@ Subcommands:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 
@@ -57,12 +58,37 @@ def main(argv: list[str] | None = None) -> int:
         "storage-path gate, bounded retention, sanitized diagnostics (reads stdin)",
     )
 
+    p_review = sub.add_parser(
+        "review",
+        help="local packet-review workflow: inventory, sample, label, status, window",
+    )
+    p_review.add_argument("--repo", default=os.getcwd(), help="repository root (default: cwd)")
+    review_sub = p_review.add_subparsers(dest="review_command")
+    r_inv = review_sub.add_parser("inventory", help="list packets with traffic class and outcomes")
+    r_inv.add_argument("--all", action="store_true", help="include packets before the current window")
+    r_sample = review_sub.add_parser("sample", help="draw a reproducible stratified sample to review")
+    r_sample.add_argument("--seed", type=int, default=1)
+    r_sample.add_argument("--n", type=int, default=8)
+    r_sample.add_argument("--all", action="store_true", help="sample across all packets, not only the window")
+    r_sample.add_argument("--include-labeled", action="store_true")
+    r_label = review_sub.add_parser("label", help="record a usefulness label for a packet")
+    r_label.add_argument("packet_id", help="packet id or unique prefix")
+    r_label.add_argument("label", choices=("helped", "neutral", "hurt-noise", "insufficient"))
+    r_label.add_argument("--note", default=None, help="short rationale (<= 200 chars)")
+    review_sub.add_parser("status", help="aggregates, operational health, and window-due check")
+    r_window = review_sub.add_parser("window", help="manage the review window")
+    r_window.add_argument("action", choices=("start", "show"))
+    r_window.add_argument("--name", default=None, help="window name (required for start)")
+    r_window.add_argument("--note", default=None)
+
     args = parser.parse_args(argv)
 
     if args.command == "compile":
         return _cmd_compile(args)
     if args.command == "replay":
         return _cmd_replay(args)
+    if args.command == "review":
+        return _cmd_review(args, p_review)
     if args.command == "init":
         return _cmd_init(args)
     if args.command == "hook":
@@ -115,6 +141,62 @@ def _cmd_replay(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_review(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    from . import review
+    from .config import load_config
+
+    repo = os.path.abspath(args.repo)
+    cfg = load_config(repo)
+    rdir = review.review_dir(repo)
+    command = args.review_command
+    if command is None:
+        parser.print_help()
+        return 0
+
+    if command == "window":
+        if args.action == "show":
+            window = review.load_window(rdir)
+            sys.stdout.write((json.dumps(window, indent=2) if window else "(no window)") + "\n")
+            return 0
+        if not args.name:
+            sys.stderr.write("error: --name is required for `window start`\n")
+            return 2
+        inv = review.scan(repo, cfg)
+        window = review.start_window(rdir, args.name, inv, note=args.note)
+        sys.stdout.write(
+            f"started window {window['name']} at {window['started_at']} "
+            f"(baseline {window['baseline']['packets']} packets on disk)\n"
+        )
+        return 0
+
+    inv = review.scan(repo, cfg)
+    window = review.load_window(rdir)
+
+    if command == "inventory":
+        sys.stdout.write(review.render_inventory(inv, window, only_window=not args.all))
+        return 0
+    if command == "status":
+        sys.stdout.write(review.render_status(inv, window, cfg))
+        return 0
+    if command == "sample":
+        pool = inv.summaries if args.all else [s for s in inv.summaries if review.in_window(s, window)]
+        chosen = review.sample(pool, seed=args.seed, size=args.n, include_labeled=args.include_labeled)
+        sys.stdout.write(review.render_sample(chosen, seed=args.seed))
+        return 0
+    if command == "label":
+        matches = [s for s in inv.summaries if s.packet_id.startswith(args.packet_id)]
+        if len(matches) != 1:
+            sys.stderr.write(
+                f"error: packet id {args.packet_id!r} matches {len(matches)} packet(s); need exactly one\n"
+            )
+            return 2
+        record = review.append_label(rdir, matches[0], args.label, note=args.note)
+        sys.stdout.write(f"labeled {record['packet_id']} {record['label']}\n")
+        return 0
+    parser.print_help()
+    return 0
+
+
 def render_replay_report(packet: EvidencePacket, *, cwd: str | None = None) -> str:
     selected = [e for e in packet.evidence if e.compiler_assessment.selected]
     omitted = [e for e in packet.evidence if not e.compiler_assessment.selected]
@@ -131,9 +213,11 @@ def render_replay_report(packet: EvidencePacket, *, cwd: str | None = None) -> s
         f"created_at     {packet.created_at}",
         f"repository     {packet.identity.repository_root}",
         f"worktree       {packet.identity.worktree_id or '(main)'}",
-        f"head           {packet.identity.head or '(unknown)'}  branch {packet.identity.branch or '(none)'}",
-        f"intent         {packet.task.intent}",
+        f"head           {packet.identity.head or '(unknown)'}  branch {packet.identity.branch or '(none)'}"
+        + (f"  [{packet.identity.head_state}]" if packet.identity.head_state else ""),
+        f"intent         {packet.task.intent}  source {packet.task.source_kind}",
         f"symbols        {', '.join(packet.task.extracted_symbols) or '(none)'}",
+        f"rejected       {_rejected_symbols(packet) or '(none)'}",
         f"scope          {packet.scope.confidence} [{', '.join(packet.scope.sources) or 'none'}]",
         "",
         f"evidence       {len(packet.evidence)} total  |  {len(selected)} selected  |  {len(omitted)} omitted",
@@ -159,6 +243,15 @@ def render_replay_report(packet: EvidencePacket, *, cwd: str | None = None) -> s
                 f"  (score {e.compiler_assessment.final_score:.2f}; {why})"
             )
     return "\n".join(lines) + "\n"
+
+
+def _rejected_symbols(packet: EvidencePacket) -> str:
+    parts = [
+        f"{d.get('value')}:{d.get('reason')}"
+        for d in packet.task.symbol_details
+        if isinstance(d, dict) and not d.get("selected")
+    ]
+    return ", ".join(parts[:12]) + (" …" if len(parts) > 12 else "")
 
 
 def _identity_mismatch(packet: EvidencePacket, cwd: str | None) -> str | None:

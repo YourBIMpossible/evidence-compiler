@@ -46,6 +46,7 @@ identity:
   worktree_id: string | null
   head: string | null
   branch: string | null
+  head_state: resolved | probe_timeout | unresolved | null   # 1.x addition (v0.2.0): why head is null
 
 correlation:
   prompt_hash: string
@@ -57,6 +58,10 @@ task:
   active_file: string | null
   selection_range: object | null
   extracted_symbols: [string]
+  # 1.x additions (v0.2.0) — optional; readers ignore unknown keys
+  source_kind: human | harness          # harness = system/tool notification text on the prompt channel
+  symbol_details:                       # every candidate considered, never prompt text
+    - {value: string, category: string, rank: int, selected: bool, reason: string}
 
 scope:
   confidence: high | medium | low
@@ -160,6 +165,13 @@ Two layers of claim:
 ```
 
 Absence **after search** is evidence. Distinguish “not looked” from “looked, found none.”
+
+Outcomes used by the ripgrep collector (v0.2.0): `no_existing_reference`
+(looked, found none — the only outcome rendered as absence),
+`search_timeout` (this symbol's budget expired), `not_searched` (never
+launched: budget spent or match cap reached), `search_error` (decode,
+process, or launch failure; `diagnostic.category` says which). See
+[docs/dogfood-review.md](../dogfood-review.md) §2.
 
 ---
 

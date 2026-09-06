@@ -61,6 +61,9 @@ class Identity:
     worktree_id: str | None = None
     head: str | None = None
     branch: str | None = None
+    #: 1.x optional: why ``head`` is/isn't bound — ``resolved`` |
+    #: ``probe_timeout`` | ``unresolved`` (see :mod:`evidence_compiler.gitprobe`).
+    head_state: str | None = None
 
 
 @dataclass
@@ -76,6 +79,12 @@ class Task:
     active_file: str | None = None
     selection_range: dict[str, Any] | None = None
     extracted_symbols: list[str] = field(default_factory=list)
+    #: 1.x optional: ``human`` (a person's prompt) or ``harness`` (tool /
+    #: system notification text the hook received on the prompt channel).
+    source_kind: str = "human"
+    #: 1.x optional: per-candidate selection metadata from scoping —
+    #: ``{value, category, rank, selected, reason}``. Never prompt text.
+    symbol_details: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass

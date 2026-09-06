@@ -30,9 +30,23 @@ collectors:
     timeout_ms: 250
   ripgrep:
     enabled: true
-    timeout_ms: 500
+    # Shared across all searched symbols (each gets at least 100 ms). Symbols
+    # that cannot be searched within budget are recorded as `not_searched`.
+    timeout_ms: 1500
     extra_args: []
   graphify:
     # Phase 1A stub: always reports "skipped / not implemented".
     enabled: true
     timeout_ms: 1250
+
+scoping:
+  # Case-insensitive symbol values this repo never wants searched. The
+  # repository's own folder name is rejected automatically. Add product or
+  # tool names that recur in prompts but never identify code.
+  ignore_symbols: []
+
+review:
+  # `evidence review status` warns that a review window is due once either
+  # threshold is crossed since `evidence review window start`. 0 disables.
+  window_days: 14
+  window_candidates: 10

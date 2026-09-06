@@ -35,8 +35,22 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "budget": {"min_tokens": 600, "default_tokens": 1000, "max_tokens": 1200},
     "collectors": {
         "git": {"enabled": True, "timeout_ms": 250},
-        "ripgrep": {"enabled": True, "timeout_ms": 500, "extra_args": []},
+        # 1500 ms: Window 2 showed single-symbol searches on a loaded machine
+        # landing at 510–614 ms, just past the old 500 ms budget; the 25 s
+        # end-to-end ceiling leaves ample room.
+        "ripgrep": {"enabled": True, "timeout_ms": 1500, "extra_args": []},
         "graphify": {"enabled": True, "timeout_ms": 1250},
+    },
+    "scoping": {
+        # Case-insensitive symbol values a repo never wants searched (its
+        # own name is rejected automatically; add tool names, product words).
+        "ignore_symbols": [],
+    },
+    "review": {
+        # `evidence review status` warns when either threshold is crossed
+        # since the current window started. 0 disables that trigger.
+        "window_days": 14,
+        "window_candidates": 10,
     },
 }
 
@@ -84,6 +98,21 @@ class Config:
 
     def collector_timeout_ms(self, name: str) -> int:
         return int(self.collector_slice(name).get("timeout_ms", 500))
+
+    @property
+    def ignore_symbols(self) -> frozenset[str]:
+        """Lower-cased symbol values the repo excludes from lexical search."""
+        raw = (self.data.get("scoping", {}) or {}).get("ignore_symbols", []) or []
+        if not isinstance(raw, (list, tuple)):
+            return frozenset()
+        return frozenset(str(v).strip().lower() for v in raw if str(v).strip())
+
+    def review_threshold(self, key: str) -> int:
+        section = self.data.get("review", {}) or {}
+        try:
+            return max(int(section.get(key, DEFAULT_CONFIG["review"][key])), 0)
+        except (TypeError, ValueError):
+            return int(DEFAULT_CONFIG["review"][key])
 
 
 def load_config(repository_root: str) -> Config:

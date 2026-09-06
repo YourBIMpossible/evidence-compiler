@@ -11,7 +11,9 @@ def test_defaults_when_no_file(tmp_path):
     cfg = load_config(str(tmp_path))
     assert cfg.collector_enabled("git") is True
     assert cfg.collector_enabled("ripgrep") is True
-    assert cfg.collector_timeout_ms("ripgrep") == 500
+    assert cfg.collector_timeout_ms("ripgrep") == 1500
+    assert cfg.ignore_symbols == frozenset()
+    assert cfg.review_threshold("window_days") == 14
     assert cfg.deadline_ms == DEFAULT_DEADLINE_MS
     assert cfg.budget["max_tokens"] == 1200
 

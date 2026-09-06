@@ -29,24 +29,43 @@ class GitCollector(Collector):
                 diagnostic={"reason": info.reason or "not a git work tree"},
             )
 
+        # The compiler already bound identity with its own (larger) probe
+        # budget; if this collector's shorter probe timed out on HEAD, reuse
+        # the bound value rather than reporting "unknown" for a known commit.
+        head = info.head
+        head_state = info.head_state
+        if head is None and head_state == "probe_timeout" and context.head:
+            head = context.head
+            head_state = "resolved"
+
         items: list[RawClaim] = []
 
-        head_short = (info.head or "")[:12] or "unknown"
-        branch = info.branch or "(detached)"
+        head_short = (head or "")[:12] or "unknown"
+        if info.branch:
+            branch = info.branch
+        elif info.detached:
+            branch = "(detached)"
+        else:
+            branch = "(unknown)"
+        statement = f"HEAD {head_short} on branch {branch}"
+        if head is None and head_state == "probe_timeout":
+            statement += "  [git probe timed out; HEAD not resolved]"
         items.append(
             RawClaim(
                 kind="git_meta",
-                statement=f"HEAD {head_short} on branch {branch}",
+                statement=statement,
                 references=[],
                 authority="authoritative",
                 freshness="current",
                 confidence=1.0,
                 command="git rev-parse HEAD / --abbrev-ref HEAD",
-                source_revision=info.head,
+                source_revision=head,
                 extra={
                     "branch": info.branch,
                     "worktree_id": info.worktree_id,
                     "dirty_count": len(info.dirty_paths),
+                    "head_state": head_state,
+                    "detached": info.detached,
                 },
             )
         )
@@ -62,13 +81,15 @@ class GitCollector(Collector):
                     freshness="dirty_overlay",
                     confidence=1.0,
                     command="git status --porcelain",
-                    source_revision=info.head,
+                    source_revision=head,
                     extra={"path": ref},
                 )
             )
 
         status = "ok" if items else "empty"
-        diagnostic: dict = {"dirty_count": len(info.dirty_paths)}
+        diagnostic: dict = {"dirty_count": len(info.dirty_paths), "head_state": head_state}
+        if info.reason and head is None:
+            diagnostic["reason"] = info.reason
         if status == "empty":
             diagnostic["reason"] = "no git metadata produced"
         return EvidenceResult(

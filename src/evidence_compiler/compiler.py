@@ -36,6 +36,9 @@ from .ranking import rank
 from .rendering import RenderResult, render_brief
 
 
+_IDENTITY_PROBE_MS = 1000
+
+
 @dataclass
 class CompileResult:
     packet: EvidencePacket
@@ -67,8 +70,17 @@ def compile_packet(
 
     # -- scope --------------------------------------------------------------
     t0 = time.perf_counter()
-    task = scoping.build_task(prompt, active_file)
-    git_info = gitprobe.probe(cwd, timeout_ms=min(cfg.collector_timeout_ms("git"), 1000))
+    task = scoping.build_task(
+        prompt,
+        active_file,
+        repository_root=repository_root,
+        ignore_symbols=cfg.ignore_symbols,
+    )
+    # Identity binding gets its own budget, independent of the git
+    # *collector's* timeout: a 250 ms collector slice divided per call left
+    # `rev-parse HEAD` 62 ms on a loaded machine and bound packets to
+    # `head: null` (Window 2). Bounded well inside the end-to-end deadline.
+    git_info = gitprobe.probe(cwd, timeout_ms=_IDENTITY_PROBE_MS)
     identity = Identity(
         repository_root=repository_root,
         session_id=session_id,
@@ -76,6 +88,7 @@ def compile_packet(
         worktree_id=git_info.worktree_id,
         head=git_info.head,
         branch=git_info.branch,
+        head_state=git_info.head_state if git_info.is_repo else None,
     )
     scope = scoping.build_scope(task, git_info.head)
     stages["scope_ms"] = _ms(t0)

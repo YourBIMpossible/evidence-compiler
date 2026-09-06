@@ -95,6 +95,27 @@ it, run a normal Claude Code Desktop prompt in a repo and confirm the brief
 appears as injected context (and that a packet lands under
 `.evidence-compiler/packets/`).
 
+## Reviewing what the hook produced
+
+Safety (the hook never blocks), coverage (collectors ran), and usefulness
+(the brief helped) are three different questions. `evidence review` answers
+them separately from the packets already on disk, locally, without ever
+printing prompt text:
+
+```bash
+evidence review --repo . window start --name W3   # cut line for a fresh window
+evidence review --repo . status                   # traffic split, collector health, labels, due check
+evidence review --repo . sample --seed 3 --n 8    # reproducible stratified sample to read with `replay`
+evidence review --repo . label <packet_id> helped --note "…"
+```
+
+Packets record `task.source_kind` (`human` vs harness/system-notification
+text on the prompt channel), `task.symbol_details` (why each candidate
+symbol was searched or rejected), `identity.head_state`, and per-symbol
+ripgrep outcomes (`matches / no_matches / timeout / not_searched /
+decode_error / process_error / launch_error`). See
+[docs/dogfood-review.md](docs/dogfood-review.md).
+
 ## Configuration
 
 Core runs on built-in defaults. Optional per-repo settings live in
@@ -113,6 +134,7 @@ policy belongs here, never in core package code. See the file written by
 | [graphify-evaluation](docs/graphify-evaluation.md) | Graphify's role, evaluation tiers, guardrails |
 | [roadmap](docs/roadmap.md) | Phased delivery, v0.1 → v1.0, explicit non-goals |
 | [quickstart](docs/quickstart.md) | 5-minute walkthrough against a public repo |
+| [dogfood-review](docs/dogfood-review.md) | Outcome categories, privacy boundary, and the local `evidence review` workflow |
 
 ## Core invariants
 

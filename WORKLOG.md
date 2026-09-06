@@ -93,7 +93,11 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
   its historical sections in under a `## Archive` heading — say the word.
 - (resolved 2026-09-06) WORKLOG edits committed in a docs-only commit on
   `claude/w3-evidence-quality`.
-- 2026-09-06 — **Downstream configs still pin `ripgrep.timeout_ms: 500`**
+- 2026-09-06 — **Post-deploy follow-up shipped**: PR #10 (`ab6dc90`, v0.2.1) —
+  git `dirty_state` observability + default git budget 600 ms; fixes the
+  determinism flake found in post-deploy verification. Window 3 started on
+  v0.2.1 in both downstream repos (`evidence review window start --name W3`).
+- 2026-09-06 — **Downstream configs still pin `ripgrep.timeout_ms: 500`** (and `git.timeout_ms: 250`)
   (BIMpossible, Workspace). Core default is now 1500; raising them is a
   downstream edit this pass did not make. Say the word.
 - (resolved 2026-09-02) Pushed lane `claude/evidence-compiler-audit-81162b` to

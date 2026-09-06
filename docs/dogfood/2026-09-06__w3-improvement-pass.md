@@ -46,3 +46,20 @@ measurable, higher-quality dogfood state in one continuous pass. Lane branch
 | Harness prompts still produce a packet (no symbols, no rg) | Keeps the hook path uniform and the packet stream auditable; the review tool classifies them out. |
 | Review artifacts under `logs/review/` not a new top-level dir | Downstream `.gitignore` only covers `packets/` and `logs/`; downstream edits are out of scope. |
 | `EC-RG-CAP-DET` frozen; Phase 1B not reopened | Per mandate. |
+
+## Post-deploy follow-up (same day)
+
+`test_determinism` flaked 1-in-15 under the hook interpreter. Probe: one
+compile lost the `dirty: src/beta.py` line while git/rg statuses were all
+nominal — the git collector's 250 ms budget across six git calls starved
+`git status`, and a status timeout returned an empty overlay with no trace.
+Fixed in PR #10 (merge `ab6dc90`, v0.2.1): `GitInfo.dirty_state`
+(`resolved | probe_timeout | error`) surfaced in the `git_meta` claim and the
+collector diagnostic; default git budget 600 ms. Installed in the hook
+interpreter; smoke and Window 3 start ran against this revision.
+
+| Decision | Rationale |
+|---|---|
+| Unknown dirty overlay is reported, never rendered as clean | Invariant 4: absence of evidence under timeout is not evidence of a clean tree. |
+| Default git budget 250 → 600 ms, not a status-first reorder | Six calls × 100 ms floor must fit; ordering keeps HEAD (identity) ahead of the overlay. Downstream configs pin 250 and are not edited by this pass. |
+| Non-ASCII identifier tokenisation left as a Window 3 watch item | Observed once in a synthetic probe (`größe`); no corpus recurrence yet. |

@@ -37,6 +37,12 @@ class GitInfo:
     head_state: str = "unresolved"
     #: True when git reported HEAD is not on a branch.
     detached: bool = False
+    #: ``resolved`` (``git status`` answered; ``dirty_paths`` is complete),
+    #: ``probe_timeout`` (status did not answer within the remaining budget),
+    #: ``error`` (status exited non-zero). Anything but ``resolved`` means the
+    #: dirty overlay is unknown, *not* clean — consumers must not read an
+    #: empty ``dirty_paths`` as "no uncommitted changes".
+    dirty_state: str = "resolved"
 
 
 def git_available() -> bool:
@@ -113,8 +119,12 @@ def probe(cwd: str, timeout_ms: int = 1000) -> GitInfo:
 
     status = _run(["status", "--porcelain", "-z"], cwd, budget.next_ms())
     dirty: list[str] = []
-    if status and status.returncode == 0:
-        dirty = _parse_porcelain_z(status.stdout)
+    if status is None:
+        dirty_state = "probe_timeout"
+    elif status.returncode == 0:
+        dirty, dirty_state = _parse_porcelain_z(status.stdout), "resolved"
+    else:
+        dirty_state = "error"
 
     reason = None
     if head_state == "probe_timeout":
@@ -131,6 +141,7 @@ def probe(cwd: str, timeout_ms: int = 1000) -> GitInfo:
         reason=reason,
         head_state=head_state,
         detached=detached,
+        dirty_state=dirty_state,
     )
 
 

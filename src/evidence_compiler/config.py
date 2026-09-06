@@ -34,7 +34,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "deadline_ms": DEFAULT_DEADLINE_MS,
     "budget": {"min_tokens": 600, "default_tokens": 1000, "max_tokens": 1200},
     "collectors": {
-        "git": {"enabled": True, "timeout_ms": 250},
+        "git": {"enabled": True, "timeout_ms": 600},
         # 1500 ms: Window 2 showed single-symbol searches on a loaded machine
         # landing at 510–614 ms, just past the old 500 ms budget; the 25 s
         # end-to-end ceiling leaves ample room.

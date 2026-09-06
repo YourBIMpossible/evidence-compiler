@@ -91,3 +91,46 @@ def test_git_collector_falls_back_to_context_head_on_probe_timeout(golden_repo, 
     assert meta.source_revision == "a" * 40
     assert meta.extra["head_state"] == "resolved"
     assert "timed out" not in meta.statement
+
+
+# -- dirty overlay: a status timeout must be observable, never "clean" ------
+
+
+@git_required
+def test_dirty_state_resolved_lists_dirty_paths(dirty_golden_repo):
+    info = gitprobe.probe(dirty_golden_repo)
+    assert info.dirty_state == "resolved"
+    assert info.dirty_paths  # the fixture dirties src/beta.py
+
+
+@git_required
+def test_status_timeout_is_reported_not_silently_clean(dirty_golden_repo, monkeypatch):
+    real_run = gitprobe._run
+
+    def run_with_slow_status(args, cwd, timeout_ms):
+        if args[:2] == ["status", "--porcelain"]:
+            return None
+        return real_run(args, cwd, timeout_ms)
+
+    monkeypatch.setattr(gitprobe, "_run", run_with_slow_status)
+    info = gitprobe.probe(dirty_golden_repo)
+    assert info.dirty_state == "probe_timeout"
+    assert info.dirty_paths == []
+
+    result = GitCollector().collect(make_context(dirty_golden_repo, "x"))
+    assert result.status == "ok"
+    assert result.diagnostic["dirty_state"] == "probe_timeout"
+    assert "dirty overlay unknown" in result.diagnostic["reason"]
+    meta = [c for c in result.items if c.kind == "git_meta"][0]
+    assert meta.extra["dirty_state"] == "probe_timeout"
+    assert "dirty overlay unknown" in meta.statement
+    assert not [c for c in result.items if c.kind == "git_dirty"]
+
+
+@git_required
+def test_default_git_budget_covers_six_calls_with_floor():
+    from evidence_compiler.config import Config
+
+    # six calls x 100 ms floor must fit the default budget, otherwise the
+    # last call (git status) is starved on a cold Windows spawn.
+    assert Config().collector_timeout_ms("git") >= 6 * gitprobe._MIN_CALL_MS

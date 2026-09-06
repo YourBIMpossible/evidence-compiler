@@ -50,6 +50,9 @@ class GitCollector(Collector):
         statement = f"HEAD {head_short} on branch {branch}"
         if head is None and head_state == "probe_timeout":
             statement += "  [git probe timed out; HEAD not resolved]"
+        if info.dirty_state != "resolved":
+            # An unknown overlay must never read as a clean tree (invariant 4).
+            statement += "  [git status did not answer; dirty overlay unknown]"
         items.append(
             RawClaim(
                 kind="git_meta",
@@ -66,6 +69,7 @@ class GitCollector(Collector):
                     "dirty_count": len(info.dirty_paths),
                     "head_state": head_state,
                     "detached": info.detached,
+                    "dirty_state": info.dirty_state,
                 },
             )
         )
@@ -87,9 +91,15 @@ class GitCollector(Collector):
             )
 
         status = "ok" if items else "empty"
-        diagnostic: dict = {"dirty_count": len(info.dirty_paths), "head_state": head_state}
+        diagnostic: dict = {
+            "dirty_count": len(info.dirty_paths),
+            "head_state": head_state,
+            "dirty_state": info.dirty_state,
+        }
         if info.reason and head is None:
             diagnostic["reason"] = info.reason
+        if info.dirty_state != "resolved":
+            diagnostic["reason"] = f"git status {info.dirty_state}; dirty overlay unknown"
         if status == "empty":
             diagnostic["reason"] = "no git metadata produced"
         return EvidenceResult(

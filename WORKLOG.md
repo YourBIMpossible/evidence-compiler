@@ -5,6 +5,14 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Done
 
+- 2026-09-06 — **Window 3 activation pass — final report**
+  ([docs/dogfood/2026-09-06__w3-activation-pass.md](docs/dogfood/2026-09-06__w3-activation-pass.md)).
+  v0.3.0 live-installed (`92b4e33`); downstream git/rg timeouts 250/500 →
+  600/1500 in four repos, smoke-verified (rg 0 timeouts, dirty probe
+  resolved, ~1 s hook); W3 live status recorded (BIMpossible 1 candidate /
+  0 labels, Workspace 0 / 0; `remind` silent). NORTHSTAR W2→W3 patch
+  proposed in the report, not applied.
+
 - 2026-09-06 — **Window 3 activation pass** (lane `claude/w3b-unicode-dedup-review`,
   v0.2.1 → v0.3.0, commit `f1f5bdd`). Tests 167 → 200; lint at baseline.
   - Unicode-aware symbol extraction: identifier shape by Unicode word class,
@@ -127,8 +135,9 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
   git `dirty_state` observability + default git budget 600 ms; fixes the
   determinism flake found in post-deploy verification. Window 3 started on
   v0.2.1 in both downstream repos (`evidence review window start --name W3`).
-- 2026-09-06 — **Downstream configs still pin `ripgrep.timeout_ms: 500`** (and `git.timeout_ms: 250`)
-  (BIMpossible, Workspace). Core default is now 1500; raising them is a
-  downstream edit this pass did not make. Say the word.
+- (resolved 2026-09-06) **Downstream configs still pin `ripgrep.timeout_ms: 500`** (and `git.timeout_ms: 250`)
+  — raised to 600/1500 in all four repos (BIMpossible #601, Workspace #123,
+  AddIns #118, Families #14) after live measurement showed 4/10 symbols
+  searched with 0 matches and git probe timeouts at the old values.
 - (resolved 2026-09-02) Pushed lane `claude/evidence-compiler-audit-81162b` to
   `origin` and opened PR #6 against `master` for the audit + code-review fixes.

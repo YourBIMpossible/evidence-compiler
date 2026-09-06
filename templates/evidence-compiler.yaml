@@ -27,7 +27,10 @@ budget:
 collectors:
   git:
     enabled: true
-    timeout_ms: 250
+    # Shared across six git calls (each gets at least 100 ms). On Windows a
+    # git spawn costs ~40 ms, so 250 ms starved `git status` and silently
+    # dropped the dirty overlay; the collector now reports `dirty_state`.
+    timeout_ms: 600
   ripgrep:
     enabled: true
     # Shared across all searched symbols (each gets at least 100 ms). Symbols

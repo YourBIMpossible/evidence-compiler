@@ -60,6 +60,19 @@ is `null`, `identity.head_state` says why:
 A detached checkout keeps `head` and sets `branch: null`; the git collector
 labels it `(detached)`.
 
+The dirty overlay has the same discipline. The git collector's `git_meta`
+claim and its `collectors_run[].diagnostic` carry `dirty_state`:
+
+| `dirty_state` | Meaning |
+|---|---|
+| `resolved` | `git status --porcelain` answered; the `git_dirty` claims are complete |
+| `probe_timeout` | status did not answer within the collector's remaining budget; the overlay is *unknown*, not clean |
+| `error` | status exited non-zero |
+
+Before v0.2.1 a status timeout produced an empty overlay with no trace, which
+is how a compile could non-deterministically lose a `dirty:` line. The default
+git budget is now 600 ms for six git calls (a Windows git spawn costs ~40 ms).
+
 ## 4. Task provenance: `source_kind` and `symbol_details`
 
 Claude Code's `UserPromptSubmit` channel also carries text no person typed:

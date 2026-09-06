@@ -105,15 +105,19 @@ printing prompt text:
 ```bash
 evidence review --repo . window start --name W3   # cut line for a fresh window
 evidence review --repo . status                   # traffic split, collector health, labels, due check
+evidence review --repo . queue --n 5              # next unlabeled packets, fixed order, never reshuffled
 evidence review --repo . sample --seed 3 --n 8    # reproducible stratified sample to read with `replay`
-evidence review --repo . label <packet_id> helped --note "…"
+evidence review --repo . label <packet_id> helped --note "…"   # --note is required
+evidence review --repo . remind                   # one line when a review is due, silent otherwise
 ```
 
 Packets record `task.source_kind` (`human` vs harness/system-notification
 text on the prompt channel), `task.symbol_details` (why each candidate
 symbol was searched or rejected), `identity.head_state`, and per-symbol
 ripgrep outcomes (`matches / no_matches / timeout / not_searched /
-decode_error / process_error / launch_error`). See
+decode_error / process_error / launch_error`). Symbol extraction is
+Unicode-aware (`fenster_größe`, `señal_activa`), and items citing the same
+reference render once with `also matches …` on the survivor's line. See
 [docs/dogfood-review.md](docs/dogfood-review.md).
 
 ## Configuration

@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import Any, Iterable
+import unicodedata
+from itertools import pairwise
+from typing import Any, Iterable, Iterator
 
 from .packet import Scope, Task
 
@@ -32,18 +34,27 @@ _INTENT_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
 ]
 
 # Identifier-ish tokens: dotted paths, CamelCase, snake_case, calls.
-_SYMBOL_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
+#
+# Unicode-aware on purpose: ``\w`` in a ``str`` pattern matches every letter
+# and digit the Unicode database knows (plus ``_``), so ``fenster_größe``,
+# ``Größe.berechnen`` and ``señal_activa`` are single identifiers instead of
+# the ASCII fragments ``fenster_gr`` / ``e`` an ``[A-Za-z]`` class produced.
+# ``[^\W\d]`` is "a word character that is not a digit" — the identifier
+# start rule (letter or underscore) in any script.
+_IDENT_START = r"[^\W\d]"
+_IDENT = rf"{_IDENT_START}\w*"
+_SYMBOL_RE = re.compile(rf"{_IDENT}(?:\.{_IDENT})*")
 
 # Hyphenated technical compounds (``User-Agent``, ``Content-Type``,
 # ``X-Request-Id``): every component starts uppercase, which separates header/
-# protocol-style terms from prose hyphenations like "well-known". Tried before
-# _SYMBOL_RE so the compound is captured whole instead of being split into
-# generic fragments (Phase 1B).
-_COMPOUND_PART = r"[A-Z][A-Za-z0-9]*"
-_TOKEN_RE = re.compile(
-    rf"{_COMPOUND_PART}(?:-{_COMPOUND_PART})+"
-    r"|[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*"
-)
+# protocol-style terms from prose hyphenations like "well-known". Hyphenated
+# spans are matched first so a compound is captured whole instead of being
+# split into generic fragments (Phase 1B); a span whose components do not all
+# start uppercase is re-scanned as plain identifiers (see :func:`_tokens`).
+_COMPOUND_PART = rf"{_IDENT_START}\w*"
+_HYPHEN_SPAN_RE = re.compile(rf"{_COMPOUND_PART}(?:-{_COMPOUND_PART})+")
+_TOKEN_RE = re.compile(rf"{_HYPHEN_SPAN_RE.pattern}|{_SYMBOL_RE.pattern}")
+_CALL_RE = re.compile(rf"({_IDENT})\s*\(")
 
 # Common English / prose words to drop so they are not treated as symbols.
 _STOPWORDS = {
@@ -138,6 +149,42 @@ def classify_prompt_source(prompt: str) -> str:
     return "human"
 
 
+def normalize_prompt_text(prompt: str) -> str:
+    r"""Canonical (NFC) form of ``prompt`` for tokenization.
+
+    Decomposed input (``o`` + combining diaeresis) would otherwise split an
+    identifier at the combining mark, which ``\w`` does not match. NFC is the
+    only normalization applied: it never changes which characters a token is
+    made of beyond canonical equivalence, so the token is still what the
+    author typed and what ripgrep should be asked for. Case folding, NFKC
+    (``ﬁ`` → ``fi``) and transliteration are deliberately *not* applied — they
+    would search for text that is not in the prompt.
+    """
+    return unicodedata.normalize("NFC", prompt or "")
+
+
+def _is_compound(span: str) -> bool:
+    """Every hyphen component starts with an uppercase letter."""
+    return all(part[:1].isupper() for part in span.split("-"))
+
+
+def _tokens(text: str) -> Iterator[tuple[str, int]]:
+    """Yield ``(token, start)`` for every identifier-shaped token in ``text``.
+
+    A hyphenated span is yielded whole only when it is a technical compound
+    (``User-Agent``); otherwise (``well-known``, ``größen-abhängig``) each
+    component is yielded on its own, exactly as it would be without the
+    hyphen. Pure and order-preserving.
+    """
+    for match in _TOKEN_RE.finditer(text):
+        token = match.group(0)
+        if "-" not in token or _is_compound(token):
+            yield token, match.start()
+        else:
+            for part in _SYMBOL_RE.finditer(token):
+                yield part.group(0), match.start() + part.start()
+
+
 # --------------------------------------------------------------------------
 # Symbol extraction
 # --------------------------------------------------------------------------
@@ -179,8 +226,9 @@ def extract_symbol_details(
     """
     if not prompt:
         return []
+    prompt = normalize_prompt_text(prompt)
 
-    called = set(re.findall(r"([A-Za-z_][A-Za-z0-9_]*)\s*\(", prompt))
+    called = set(_CALL_RE.findall(prompt))
     backticked = set(re.findall(r"`([^`]+)`", prompt))
     self_name = (repository_name or "").strip().lower()
     self_keys = {self_name, self_name.replace("-", "_"), self_name.replace("_", "-")} - {""}
@@ -220,8 +268,7 @@ def extract_symbol_details(
             {"value": value, "category": category, "rank": 0, "selected": False, "reason": reason}
         )
 
-    for match in _TOKEN_RE.finditer(prompt):
-        token = match.group(0)
+    for token, start in _tokens(prompt):
         if token in seen_exact:
             continue
         if "-" in token:
@@ -253,7 +300,7 @@ def extract_symbol_details(
         _consider(
             token,
             category,
-            sentence_initial=category == "capitalized" and _is_sentence_initial(prompt, match.start()),
+            sentence_initial=category == "capitalized" and _is_sentence_initial(prompt, start),
         )
         # A dotted member expression (``Response.iter_content``) rarely
         # appears verbatim in source; derive only the member name so the
@@ -312,11 +359,17 @@ def _categorize(token: str, called: set[str], backticked: set[str]) -> tuple[str
         return "dotted", None
     if "_" in token:
         return "snake", None
-    if re.search(r"[a-z][A-Z]", token):  # camelCase / PascalCase hump
+    if _has_case_hump(token):  # camelCase / PascalCase hump
         return "camel", None
     if token[0].isupper() and any(c.islower() for c in token[1:]):  # Capitalized word
         return "capitalized", None
     return "snake", "no_symbol_shape"
+
+
+def _has_case_hump(token: str) -> bool:
+    """A lowercase letter immediately followed by an uppercase one, in any
+    script that has case (``iterContent``, ``fensterGröße``, ``señalActiva``)."""
+    return any(a.islower() and b.isupper() for a, b in pairwise(token))
 
 
 def _is_sentence_initial(prompt: str, start: int) -> bool:

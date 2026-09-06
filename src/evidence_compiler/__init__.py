@@ -13,7 +13,7 @@ from .compiler import CompileResult, compile_packet
 from .packet import EvidencePacket, SchemaVersionError
 from .rendering import render_brief
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 __all__ = [
     "compile_packet",

@@ -119,14 +119,18 @@ Once the hook has produced a few dozen packets, judge them fairly:
 ```bash
 evidence review window start --name W1
 evidence review status
-evidence review sample --seed 1 --n 5
-evidence replay <path from the sample>
+evidence review queue --n 5
+evidence replay <path from the queue>
 evidence review label <packet_id> neutral --note "accurate, did not change the plan"
+evidence review remind
 ```
 
 `status` separates collector health from reviewer labels and tells you when
-a review is due. Nothing leaves `.evidence-compiler/` and no prompt text is
-ever printed. Details in [dogfood-review.md](dogfood-review.md).
+a review is due; `queue` lists the next unlabeled packets in a fixed order
+that labeling never reshuffles; `remind` prints one line when a review is
+due and nothing otherwise. Labels need a `--note`. Nothing leaves
+`.evidence-compiler/` and no prompt text is ever printed. Details in
+[dogfood-review.md](dogfood-review.md).
 
 ## Next
 

@@ -5,6 +5,28 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Done
 
+- 2026-09-06 — **Window 3 activation pass** (lane `claude/w3b-unicode-dedup-review`,
+  v0.2.1 → v0.3.0, commit `f1f5bdd`). Tests 167 → 200; lint at baseline.
+  - Unicode-aware symbol extraction: identifier shape by Unicode word class,
+    NFC normalisation only. Field trigger: `größe` dropped in W3. Limitation
+    pinned: capitalised German nouns enter at rank 30 (prose rule), NFD source
+    files are not matched. ripgrep collector unchanged (`-w -F` already
+    Unicode-aware).
+  - Duplicate rendered references fold into one line (`; also matches …`);
+    packet keeps folded items `selected` with a `rendered once` note;
+    `RenderResult.merged_ids`. Presentation only; ranking untouched.
+  - `evidence review queue|remind`: hash-ordered unlabeled queue that labeling
+    never reshuffles; one-line reminder when due; `label` requires `--note`
+    (exit 2 otherwise); legacy harness-word heuristic now only for packets
+    without `symbol_details` (review-all finding 5); `status` gains baseline,
+    degraded rate, reviewed/unreviewed, `head` watch metric, and the
+    "packet count is activity, not usefulness" rule. Cadence documented in
+    [docs/dogfood-review.md](docs/dogfood-review.md) §6.1.
+  - `head: null` investigation closed: all 16 BIMpossible packets with a null
+    head predate v0.2.0 (no `head_state`, mostly no `branch`) — identity probe
+    timeouts under the old shared 62 ms budget, not detached HEAD. Every v0.2+
+    packet is `resolved`. No gitprobe change; watch metric only.
+
 - 2026-09-06 — **Window 3 improvement pass** (lane `claude/w3-evidence-quality`,
   anchor [docs/dogfood/2026-09-06__w3-improvement-pass.md](docs/dogfood/2026-09-06__w3-improvement-pass.md),
   v0.1.0 → v0.2.0). Resolves the five queued 2026-09-06 items below.
@@ -47,6 +69,13 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Roadmap / queued
 
+- 2026-09-06 — **/review-all on the W3 pass** (read-only, 13 retained, 0 dropped):
+  [docs/reviews/2026-09-06__review-all__w3-pass.md](docs/reviews/2026-09-06__review-all__w3-pass.md).
+  Top items: temp-path regex alone marks human prompts `harness`; `word (`
+  ranked as a call; sentence-initial rejection is per token not per occurrence;
+  PascalCase filenames leak their extension as a symbol; review's legacy
+  harness-word heuristic overrides `source_kind`. Same Phase 1A scope as W3;
+  not started.
 - (resolved 2026-09-06, W3 pass) The next five items — rg decode defect, rg
   12-symbol timeout, harness notifications, absolute rg path, `head: null` —
   are fixed on `claude/w3-evidence-quality`; kept for the record.
@@ -74,9 +103,10 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
   (`C:\Users\<user>\…\rg.EXE`) in every lexical item. Packets are ignored/local,
   but the existing replay redaction should cover it or the collector should
   record `rg` by basename.
-- 2026-09-06 — 15 BIMpossible packets on 2026-09-06 carry `identity.head: null`
-  ("HEAD unknown on branch (detached)") while `git` reported `ok`. Unexplained;
-  watch.
+- (resolved 2026-09-06, W3 activation pass) 15 BIMpossible packets on 2026-09-06
+  carry `identity.head: null` while `git` reported `ok`. Root cause: pre-v0.2.0
+  identity-probe timeout; not detached HEAD. `status` now carries a `head`
+  watch metric.
 - (resolved 2026-09-02) Pre-existing ruff `F401` in
   `tests/contract/test_collector_contract.py:18` (`RawClaim` imported but
   unused) — dropped the unused import on lane `claude/ruff-f401-cleanup`.

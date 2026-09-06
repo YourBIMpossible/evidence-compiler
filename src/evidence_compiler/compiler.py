@@ -153,6 +153,7 @@ def compile_packet(
     trial = render_brief(packet)
     _reconcile_dropped(packet, trial)
     render = render_brief(packet) if trial.dropped_ids else trial
+    _annotate_merged(packet, render)
     packet.budget.injected_tokens = render.tokens
     stages["render_ms"] = _ms(t0)
 
@@ -303,6 +304,21 @@ def _reconcile_dropped(packet: EvidencePacket, render: RenderResult) -> None:
                 item.status = "omitted"
             if item.id not in packet.budget.omitted_evidence_ids:
                 packet.budget.omitted_evidence_ids.append(item.id)
+
+
+def _annotate_merged(packet: EvidencePacket, render: RenderResult) -> None:
+    """Items the renderer folded into another line (same collector, kind and
+    references) stay ``selected`` — the evidence *is* in the brief — but their
+    assessment records where, so ``evidence replay`` explains the single line."""
+    if not render.merged_ids:
+        return
+    for item in packet.evidence:
+        into = render.merged_ids.get(item.id)
+        if into is None:
+            continue
+        note = f"same reference as {into}; rendered once"
+        if note not in item.compiler_assessment.selected_because:
+            item.compiler_assessment.selected_because.append(note)
 
 
 # --------------------------------------------------------------------------

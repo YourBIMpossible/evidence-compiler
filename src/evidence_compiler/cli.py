@@ -60,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_review = sub.add_parser(
         "review",
-        help="local packet-review workflow: inventory, sample, label, status, window",
+        help="local packet-review workflow: inventory, queue, sample, label, status, remind, window",
     )
     p_review.add_argument("--repo", default=os.getcwd(), help="repository root (default: cwd)")
     review_sub = p_review.add_subparsers(dest="review_command")
@@ -71,11 +71,17 @@ def main(argv: list[str] | None = None) -> int:
     r_sample.add_argument("--n", type=int, default=8)
     r_sample.add_argument("--all", action="store_true", help="sample across all packets, not only the window")
     r_sample.add_argument("--include-labeled", action="store_true")
+    r_queue = review_sub.add_parser(
+        "queue", help="deterministic list of the next unlabeled packets to review (labeling never reorders it)"
+    )
+    r_queue.add_argument("--n", type=int, default=10)
+    r_queue.add_argument("--all", action="store_true", help="queue across all packets, not only the window")
     r_label = review_sub.add_parser("label", help="record a usefulness label for a packet")
     r_label.add_argument("packet_id", help="packet id or unique prefix")
     r_label.add_argument("label", choices=("helped", "neutral", "hurt-noise", "insufficient"))
-    r_label.add_argument("--note", default=None, help="short rationale (<= 200 chars)")
+    r_label.add_argument("--note", default=None, help="required short rationale (<= 200 chars)")
     review_sub.add_parser("status", help="aggregates, operational health, and window-due check")
+    review_sub.add_parser("remind", help="print one line if a review is due, nothing otherwise")
     r_window = review_sub.add_parser("window", help="manage the review window")
     r_window.add_argument("action", choices=("start", "show"))
     r_window.add_argument("--name", default=None, help="window name (required for start)")
@@ -183,6 +189,15 @@ def _cmd_review(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
         chosen = review.sample(pool, seed=args.seed, size=args.n, include_labeled=args.include_labeled)
         sys.stdout.write(review.render_sample(chosen, seed=args.seed))
         return 0
+    if command == "queue":
+        pool = inv.summaries if args.all else [s for s in inv.summaries if review.in_window(s, window)]
+        name = window.get("name") if window else None
+        chosen = review.queue(pool, size=args.n, window_name=name)
+        sys.stdout.write(review.render_queue(chosen, window_name=name))
+        return 0
+    if command == "remind":
+        sys.stdout.write(review.remind(inv, window, cfg))
+        return 0
     if command == "label":
         matches = [s for s in inv.summaries if s.packet_id.startswith(args.packet_id)]
         if len(matches) != 1:
@@ -190,7 +205,11 @@ def _cmd_review(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
                 f"error: packet id {args.packet_id!r} matches {len(matches)} packet(s); need exactly one\n"
             )
             return 2
-        record = review.append_label(rdir, matches[0], args.label, note=args.note)
+        try:
+            record = review.append_label(rdir, matches[0], args.label, note=args.note)
+        except ValueError as exc:
+            sys.stderr.write(f"error: {exc}\n")
+            return 2
         sys.stdout.write(f"labeled {record['packet_id']} {record['label']}\n")
         return 0
     parser.print_help()

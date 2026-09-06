@@ -110,6 +110,43 @@ scoping:
   ignore_symbols: [Revit, Dynamo]   # case-insensitive; repo's own name is automatic
 ```
 
+### 4.1 Unicode identifiers (v0.3.0)
+
+Identifier shape is decided by Unicode word characters, not `[A-Za-z]`.
+`fenster_größe`, `Fenster.größe_berechnen()`, `señal_activa`, `fensterGröße`
+and `` `größe` `` are recognised under the same categories and ranks as their
+ASCII equivalents, and ripgrep's `-w -F` search honours the same word
+boundaries, so a hit in `src/übersicht.py` reaches the brief. Prompt text is
+normalised to NFC before tokenising (a decomposed `ö` typed on macOS matches
+the composed one in source); NFKC and case folding are deliberately *not*
+applied — the query is what was typed (`ﬁle` stays `ﬁle`).
+
+Known limits, pinned by tests so a change is a conscious one:
+
+- Every German noun is capitalised, so `Die Größe des Fensters` admits
+  `Größe` and `Fensters` as rank-30 `capitalized` candidates exactly like
+  English mid-sentence capitals. They lose to any shaped identifier and are
+  the first to fall under the twelve-symbol cap.
+- Source files stored in NFD are not matched by an NFC query (ripgrep
+  compares bytes). Rare in git-managed repos; not normalised on purpose.
+- A lowercase hyphenated Unicode span (`größen-abhängig`) splits into its
+  parts like any lowercase span; `X-Forwarded-For`-style compounds survive.
+
+### 4.2 Duplicate references render once (v0.3.0)
+
+Two prompt symbols that hit the same line (`pyproject.toml` and `toml` both
+matching `pyproject.toml:3`) used to cost two brief lines for one fact. The
+renderer now folds selected items whose `(collector, kind, sorted references)`
+are identical — separators normalised, otherwise verbatim, so `a.py:10` and
+`a.py:10:5` stay distinct, and items without references are never folded.
+The highest-scored item is rendered; the others' symbols are appended to its
+`why` line as `; also matches toml`. In the packet the folded items remain
+`selected: true` with the note `same reference as <id>; rendered once` in
+`selected_because`; they are not added to `omitted_evidence_ids`, because
+their fact *is* in the brief. `RenderResult.merged_ids` maps each folded id
+to its survivor. Nothing about ranking changes — this is presentation only,
+which keeps the packet the single source of truth.
+
 ## 5. Privacy boundary
 
 Packets and review artifacts contain: hashes, ids, timestamps, symbol
@@ -159,12 +196,45 @@ existed but was not collected or was omitted). Records are appended to
 `review.window_days` or has accumulated `review.window_candidates` unlabeled
 candidate packets (defaults 14 / 10; `0` disables a trigger).
 
+### 6.1 Queue and reminder (v0.3.0)
+
+`sample` answers "give me a fair subset"; `queue` answers "what do I review
+next" and never shuffles under you:
+
+```bash
+evidence review --repo F:/MyRepo queue --n 5     # next unlabeled packets, fixed order
+evidence review --repo F:/MyRepo remind          # one line if a review is due, else nothing
+```
+
+The queue ranks every unlabeled candidate packet (then every unlabeled
+no-symbol packet) by `sha256(window_name:packet_id)`. Labeling a packet
+removes it and leaves the rest in place, so two sittings a week apart see the
+same order; harness and probe traffic never appears. `remind` is safe for a
+shell prompt or a scheduled task: silent until `window_days` or
+`window_candidates` trips, then a single line pointing at `queue`.
+
+`label` requires `--note`; a label without a reason is rejected (exit 2) —
+an unexplained `hurt-noise` cannot be acted on later. Notes are
+whitespace-collapsed and cut at 200 characters.
+
+`status` also reports the window baseline (packets on disk when the window
+was cut), the degraded-packet rate, `candidates reviewed X / unreviewed Y`,
+and a watch metric `head N packet(s) without a head commit` (expected 0 since
+v0.2.0's dedicated identity-probe budget; every historical `head: null`
+packet predates it and coincided with the old shared 62 ms probe timeout).
+
+**Cadence.** Review when `remind` speaks — every 14 days or every 10
+unlabeled candidates, whichever first — and label the queue until it is
+empty or you have read ten packets. Raw packet count is activity, not
+usefulness: only labels answer "did it help", and the review-window baseline
+exists so that "N packets since W3 started" is never mistaken for progress.
+
 ## 7. Traffic classes
 
 | Class | Rule |
 |---|---|
 | `probe` | `identity.session_id` starts with `probe` (smoke tests) |
-| `harness` | `task.source_kind == harness`, or (packets written before that field existed) three or more generic notification/path words among the symbols |
+| `harness` | `task.source_kind == harness`, or — only for packets written before `symbol_details` existed — three or more generic notification/path words among the symbols. Packets with `symbol_details` trust `source_kind`. |
 | `nosym` | human prompt, no symbols extracted |
 | `candidate` | human prompt with symbols — the only class whose usefulness is worth labeling |
 

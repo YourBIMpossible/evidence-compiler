@@ -20,6 +20,7 @@ only packet ids, hashes, counts, statuses, and short reviewer notes.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import random
@@ -63,6 +64,7 @@ class PacketSummary:
     degraded: bool = False
     rg_outcome: str | None = None
     head_state: str | None = None
+    head_bound: bool = True
     session_id: str | None = None
     label: str | None = None
 
@@ -86,7 +88,11 @@ def classify_traffic(packet: EvidencePacket) -> str:
     if packet.task.source_kind == "harness":
         return "harness"
     symbols = packet.task.extracted_symbols
-    if len(_LEGACY_HARNESS_WORDS.intersection(symbols)) >= 3:
+    # Packets from a compiler that recorded ``symbol_details`` already carry
+    # the classifier's verdict in ``source_kind``; the word heuristic is for
+    # older packets only, where symbols without details is the tell.
+    legacy = bool(symbols) and not packet.task.symbol_details
+    if legacy and len(_LEGACY_HARNESS_WORDS.intersection(symbols)) >= 3:
         return "harness"
     if not symbols:
         return "nosym"
@@ -113,6 +119,7 @@ def summarize(packet: EvidencePacket, path: str) -> PacketSummary:
         degraded=degraded,
         rg_outcome=rg_outcome,
         head_state=packet.identity.head_state,
+        head_bound=packet.identity.head is not None,
         session_id=packet.identity.session_id,
     )
 
@@ -174,23 +181,39 @@ def load_labels(directory: str) -> dict[str, dict[str, Any]]:
                 rec = json.loads(line)
             except ValueError:
                 continue
+            if not isinstance(rec, dict):
+                continue
             pid = rec.get("packet_id")
             if isinstance(pid, str) and rec.get("label") in LABELS:
                 out[pid] = rec
     return out
 
 
+def validate_label(label: str, note: str | None) -> str:
+    """Return the cleaned note or raise ``ValueError`` with a user-facing reason.
+
+    A label without a reason is not a review record — the North Star asks for
+    "one short reason" per packet, and an unexplained ``hurt-noise`` cannot be
+    acted on later. Notes are whitespace-collapsed (one JSON line per record)
+    and trimmed to ``MAX_NOTE_CHARS``."""
+    if label not in LABELS:
+        raise ValueError(f"label must be one of {', '.join(LABELS)}; got {label!r}")
+    cleaned = " ".join((note or "").split())
+    if not cleaned:
+        raise ValueError("a note is required: say in a few words why the packet earned this label")
+    return cleaned[:MAX_NOTE_CHARS]
+
+
 def append_label(
     directory: str, packet: PacketSummary, label: str, note: str | None = None
 ) -> dict[str, Any]:
-    if label not in LABELS:
-        raise ValueError(f"label must be one of {LABELS}, got {label!r}")
+    cleaned = validate_label(label, note)
     record = {
         "ts": utcnow_iso(),
         "packet_id": packet.packet_id,
         "prompt_hash": packet.prompt_hash,
         "label": label,
-        "note": (note or "").strip()[:MAX_NOTE_CHARS],
+        "note": cleaned,
     }
     os.makedirs(directory, exist_ok=True)
     with open(os.path.join(directory, LABELS_FILE), "a", encoding="utf-8") as fh:
@@ -288,6 +311,31 @@ def sample(
     return sorted(chosen, key=lambda s: s.created_at)
 
 
+def queue(
+    summaries: Iterable[PacketSummary],
+    *,
+    size: int,
+    window_name: str | None,
+) -> list[PacketSummary]:
+    """Deterministic review queue: unlabeled candidate packets first, then
+    unlabeled no-symbol packets, each stratum ordered by a per-packet hash of
+    ``window_name:packet_id``. Unlike :func:`sample`, labeling one packet does
+    not reorder the rest — the queue is a fixed ranking of the corpus, so the
+    next call simply shows the next unlabeled packets in the same order.
+    Harness and probe traffic never appears."""
+    if size <= 0:
+        return []
+    salt = (window_name or "").encode("utf-8")
+
+    def order(s: PacketSummary) -> str:
+        return hashlib.sha256(salt + b":" + s.packet_id.encode("utf-8")).hexdigest()
+
+    pool = [s for s in summaries if s.traffic in ("candidate", "nosym") and s.label is None]
+    ordered = sorted((s for s in pool if s.traffic == "candidate"), key=order)
+    ordered += sorted((s for s in pool if s.traffic == "nosym"), key=order)
+    return ordered[:size]
+
+
 @dataclass
 class Aggregates:
     packets: int
@@ -300,6 +348,13 @@ class Aggregates:
     labels: dict[str, int]
     labeled: int
     unlabeled_candidates: int
+    labeled_candidates: int = 0
+    head_unbound: int = 0
+
+    @property
+    def degraded_rate(self) -> float:
+        """Share of packets with any collector timeout/error (0.0 when empty)."""
+        return (self.degraded / self.packets) if self.packets else 0.0
 
 
 def aggregate(summaries: list[PacketSummary]) -> Aggregates:
@@ -334,6 +389,8 @@ def aggregate(summaries: list[PacketSummary]) -> Aggregates:
         labels=labels,
         labeled=sum(labels.values()),
         unlabeled_candidates=sum(1 for s in summaries if s.traffic == "candidate" and s.label is None),
+        labeled_candidates=sum(1 for s in summaries if s.traffic == "candidate" and s.label is not None),
+        head_unbound=sum(1 for s in summaries if not s.head_bound),
     )
 
 
@@ -418,6 +475,37 @@ def render_sample(chosen: list[PacketSummary], *, seed: int) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_queue(chosen: list[PacketSummary], *, window_name: str | None) -> str:
+    lines = [f"queue       {len(chosen)} unlabeled packet(s), window {window_name or '(none)'}", ""]
+    for s in chosen:
+        lines.append(
+            f"{s.packet_id}  {s.created_at[:19]}  {s.traffic:<9} sym={s.symbol_count} "
+            f"rg={s.rg_outcome or '-'}  {_display_path(s.path)}"
+        )
+    if chosen:
+        lines += ["", "review with:  evidence replay <path>",
+                  "label with:   evidence review label <packet_id> <helped|neutral|hurt-noise|insufficient> --note ..."]
+    else:
+        lines.append("nothing to review: every candidate/nosym packet in the window is labeled")
+    return "\n".join(lines) + "\n"
+
+
+def remind(
+    inv: Inventory, window: dict[str, Any] | None, cfg: Config, *, now: datetime | None = None
+) -> str:
+    """One line when a review is due, empty string otherwise — safe to run from
+    a shell prompt or a scheduled task without producing noise."""
+    rows = [s for s in inv.summaries if in_window(s, window)]
+    due = window_due(window, aggregate(rows), cfg, now=now)
+    if not due:
+        return ""
+    name = window.get("name") if window else "(none)"
+    return (
+        f"evidence review due ({name}): {'; '.join(due)} -- "
+        "run `evidence review queue`, then `evidence review label`\n"
+    )
+
+
 def _display_path(path: str) -> str:
     try:
         rel = os.path.relpath(path)
@@ -433,29 +521,41 @@ def render_status(
     agg = aggregate(rows)
     all_agg = aggregate(inv.summaries)
     due = window_due(window, agg, cfg, now=now)
+    baseline_info = window.get("baseline") if window else None
+    baseline = baseline_info.get("packets") if isinstance(baseline_info, dict) else None
     lines = [
         f"repository  {inv.repository_root}",
         f"window      {window.get('name') if window else '(none)'}"
         + (f" since {window.get('started_at')} (v{window.get('version')})" if window else ""),
-        f"packets     {agg.packets} in window / {all_agg.packets} on disk",
+        f"packets     {agg.packets} in window / {all_agg.packets} on disk"
+        + (f"  (baseline {baseline} at window start)" if baseline is not None else ""),
         "",
         "traffic     " + "  ".join(f"{k}={v}" for k, v in agg.by_traffic.items()),
+        (
+            f"            {agg.by_traffic['harness'] + agg.by_traffic['probe']} harness/probe packet(s) are"
+            " system traffic; only candidates can carry a usefulness label"
+        ),
         "",
         "operational health (in window):",
-        f"  degraded   {agg.degraded} packet(s) with a collector error/timeout",
+        (
+            f"  degraded   {agg.degraded} packet(s) with a collector error/timeout"
+            f" ({agg.degraded_rate:.0%} of {agg.packets})"
+        ),
     ]
     for name, statuses in sorted(agg.collector_status.items()):
         lines.append(f"  {name:<9}  " + "  ".join(f"{k}={v}" for k, v in sorted(statuses.items())))
     if agg.rg_outcomes:
         lines.append("  rg outcome " + "  ".join(f"{k}={v}" for k, v in sorted(agg.rg_outcomes.items())))
     lines.append("  head_state " + "  ".join(f"{k}={v}" for k, v in sorted(agg.head_states.items())))
+    lines.append(f"  head       {agg.head_unbound} packet(s) without a head commit (watch metric; expect 0)")
     lat = agg.latency_ms
     lines.append(f"  latency    p50 {lat['p50']} ms  p95 {lat['p95']} ms  max {lat['max']} ms")
     lines += [
         "",
         "usefulness (labels in window):",
         "  " + "  ".join(f"{k}={v}" for k, v in agg.labels.items()) + f"  (labeled {agg.labeled})",
-        f"  unlabeled candidates: {agg.unlabeled_candidates}",
+        f"  candidates reviewed {agg.labeled_candidates} / unreviewed {agg.unlabeled_candidates}",
+        "  raw packet count is activity, not usefulness: only labels answer 'did it help'",
         "",
     ]
     if due:

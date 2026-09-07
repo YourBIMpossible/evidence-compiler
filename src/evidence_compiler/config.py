@@ -51,6 +51,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
         # since the current window started. 0 disables that trigger.
         "window_days": 14,
         "window_candidates": 10,
+        # Immediate trigger: this many candidate packets in the window sharing
+        # one incident category (degraded:<collector>, cap_hit, rg_stall,
+        # hurt-noise). 0 disables.
+        "incident_threshold": 3,
     },
 }
 

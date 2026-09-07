@@ -88,7 +88,12 @@ def compile_packet(
         worktree_id=git_info.worktree_id,
         head=git_info.head,
         branch=git_info.branch,
-        head_state=git_info.head_state if git_info.is_repo else None,
+        # ``None`` only when git answered that this is not a work tree; a probe
+        # that never answered is recorded as ``probe_timeout`` (Window 3: a
+        # loaded machine produced ``head: null`` with no state at all).
+        head_state=(
+            git_info.head_state if git_info.is_repo or git_info.head_state == "probe_timeout" else None
+        ),
     )
     scope = scoping.build_scope(task, git_info.head)
     stages["scope_ms"] = _ms(t0)

@@ -47,6 +47,37 @@ def test_head_probe_timeout_is_reported_not_silent(golden_repo, monkeypatch):
 
 
 @git_required
+def test_first_probe_timeout_is_probe_timeout_not_unset(golden_repo, monkeypatch):
+    """When even ``rev-parse --is-inside-work-tree`` does not answer (seen
+    under four concurrent test suites, 2026-09-06), the packet must say
+    ``probe_timeout`` — never a bare ``head: null`` with no state, which is
+    indistinguishable from "not a repository"."""
+    monkeypatch.setattr(gitprobe, "_run", lambda args, cwd, timeout_ms: None)
+    info = gitprobe.probe(golden_repo)
+    assert not info.is_repo and info.head is None
+    assert info.head_state == "probe_timeout"
+    assert info.dirty_state == "probe_timeout"
+
+    from evidence_compiler.compiler import compile_packet
+
+    result = compile_packet("AlphaService", golden_repo, persist=False, collectors=[])
+    assert result.packet.identity.head is None
+    assert result.packet.identity.head_state == "probe_timeout"
+
+
+@git_required
+def test_outside_a_work_tree_has_no_head_state(tmp_path):
+    from evidence_compiler.compiler import compile_packet
+
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    info = gitprobe.probe(str(plain))
+    assert not info.is_repo and info.head_state != "probe_timeout"
+    result = compile_packet("AlphaService", str(plain), persist=False, collectors=[])
+    assert result.packet.identity.head_state is None
+
+
+@git_required
 def test_unborn_branch_is_unresolved(tmp_path):
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     info = gitprobe.probe(str(tmp_path))

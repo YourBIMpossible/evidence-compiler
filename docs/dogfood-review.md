@@ -46,6 +46,42 @@ Only `no_existing_reference` counts as "absence after search" in the brief.
 packet but never rendered as absence — a timeout is not evidence that the
 symbol does not exist.
 
+### 2.1 The total match cap and where ranking happens
+
+The collector stops collecting at `_MAX_TOTAL_MATCHES = 100` lexical matches
+(at most 25 per symbol). The cap is applied **at collection time, in symbol
+rank order, before ranking and before the token budget**: high-ranked symbols
+are searched first and may each contribute up to 25 matches; once the total
+reaches 100 the remaining, lower-ranked symbols are never launched and get a
+`not_searched` negative item with reason `total match cap reached`. The
+collector then sets `diagnostic.truncated: true` and `diagnostic.cap: 100`;
+status stays `ok` and `outcome` stays `matches` — a cap hit is not a timeout.
+`ranking.rank()` and the token-budget selection run afterwards on the ≤100
+surviving items, so a capped packet typically selects ~20 of them and omits
+the rest as `exceeds token budget`, while the evidence for the tail symbols
+was never collected at all. That is the evidence a cap hit can hide: the
+lowest-ranked symbols of a many-symbol prompt, not a random subset.
+
+Every review view labels such a packet unmistakably as truncated: `queue`,
+`sample`, and `inventory` show `rg=matches+capped`, `status` counts
+`rg capped N packet(s) truncated by the total match cap`, and the summary
+records `rg_truncated: true`. Reviewers should read the `not_searched`
+negatives before labeling a capped packet `insufficient`. The numeric cap is
+unchanged and its redesign is frozen (see `WORKLOG.md`, *Roadmap*): it reopens
+only after at least three distinct, reviewed human-task packets show that cap
+truncation hid needed evidence or caused a degraded answer.
+
+### 2.2 The ripgrep stall watch
+
+On 2026-09-06 a streak of packets showed rg `timeout` with every searched
+symbol timing out (10/10 symbols, 0 matches) although rg itself answers in
+under 100 ms — a machine-wide contention pattern that did not reproduce on
+demand (0 of 14 attempts). No collector change was made. The review layer
+marks the pattern as a **stall** (`rg=timeout+stall`; `status` line
+`rg stall N packet(s) where every searched symbol timed out`) when the
+collector timed out and `symbols_timeout == symbols_searched >= 2`. A single
+slow symbol among fast ones is a partial timeout, not a stall.
+
 ## 3. Identity: `head_state`
 
 `identity.head` is bound by a dedicated probe with its own budget. When it
@@ -193,8 +229,12 @@ existed but was not collected or was omitted). Records are appended to
 `logs/review/labels.jsonl`; the latest label per packet wins.
 
 `status` prints `REVIEW DUE` when the window has been open longer than
-`review.window_days` or has accumulated `review.window_candidates` unlabeled
-candidate packets (defaults 14 / 10; `0` disables a trigger).
+`review.window_days`, has accumulated `review.window_candidates` unlabeled
+candidate packets, or when `review.incident_threshold` candidate packets in
+the window share one incident category (defaults 14 / 10 / 3; `0` disables a
+trigger). Incident categories are `degraded:<collector>` (error or timeout),
+`cap_hit`, `rg_stall`, and the usefulness label `hurt-noise`; harness and
+probe traffic never counts toward them.
 
 ### 6.1 Queue and reminder (v0.3.0)
 
@@ -223,11 +263,24 @@ and a watch metric `head N packet(s) without a head commit` (expected 0 since
 v0.2.0's dedicated identity-probe budget; every historical `head: null`
 packet predates it and coincided with the old shared 62 ms probe timeout).
 
-**Cadence.** Review when `remind` speaks — every 14 days or every 10
-unlabeled candidates, whichever first — and label the queue until it is
-empty or you have read ten packets. Raw packet count is activity, not
-usefulness: only labels answer "did it help", and the review-window baseline
-exists so that "N packets since W3 started" is never mistaken for progress.
+**Cadence (Window 3 onward).** Review when `remind` speaks, and only then:
+
+- **First review:** 10 eligible human-task (`candidate`) packets in the
+  window, or 14 days after the window started, whichever comes first.
+- **Routine reviews:** every further 10 unlabeled candidates, or every 14
+  days after the previous sitting.
+- **Immediate review:** three or more candidate packets in the window share
+  one incident category (`degraded:<collector>`, `cap_hit`, `rg_stall`, or
+  `hurt-noise`). `remind` names the category so the sitting can start from
+  those packets.
+
+At each sitting, label the queue until it is empty or you have read ten
+packets; never label harness, probe, smoke, or inferred traffic. Raw packet
+count is activity, not usefulness: only labels answer "did it help", and the
+review-window baseline exists so that "N packets since W3 started" is never
+mistaken for progress. Operational counters (`degraded`, `rg capped`,
+`rg stall`, `head`) describe collector health, which is a different question
+from whether the brief helped.
 
 ## 7. Traffic classes
 

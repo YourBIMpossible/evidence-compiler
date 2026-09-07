@@ -96,7 +96,15 @@ def probe(cwd: str, timeout_ms: int = 1000) -> GitInfo:
     # is this inside a work tree?
     inside = _run(["rev-parse", "--is-inside-work-tree"], cwd, budget.next_ms())
     if inside is None:
-        return GitInfo(git_available=True, reason="git probe timed out or failed to launch")
+        # Nothing is known — not even whether this is a repo. Report the
+        # timeout as such so a loaded machine is distinguishable from a
+        # directory that is genuinely outside any work tree.
+        return GitInfo(
+            git_available=True,
+            head_state="probe_timeout",
+            dirty_state="probe_timeout",
+            reason="git probe timed out or failed to launch",
+        )
     if inside.returncode != 0 or inside.stdout.strip() != "true":
         return GitInfo(is_repo=False, reason="not a git work tree")
 

@@ -63,13 +63,42 @@ class PacketSummary:
     collector_status: dict[str, str] = field(default_factory=dict)
     degraded: bool = False
     rg_outcome: str | None = None
+    rg_truncated: bool = False
+    rg_stall: bool = False
     head_state: str | None = None
     head_bound: bool = True
     session_id: str | None = None
     label: str | None = None
 
+    @property
+    def rg_display(self) -> str:
+        """One token for list views: the rg outcome plus an unmistakable
+        ``+capped`` when the total match cap truncated the pass and ``+stall``
+        when every searched symbol timed out (see :func:`summarize`)."""
+        base = self.rg_outcome or "-"
+        if self.rg_truncated:
+            base += "+capped"
+        if self.rg_stall:
+            base += "+stall"
+        return base
+
+    @property
+    def incidents(self) -> list[str]:
+        """Operational incident categories this packet counts toward (the
+        immediate review trigger); usefulness labels add ``hurt-noise``."""
+        cats = [f"degraded:{name}" for name, st in sorted(self.collector_status.items()) if st in ("error", "timeout")]
+        if self.rg_truncated:
+            cats.append("cap_hit")
+        if self.rg_stall:
+            cats.append("rg_stall")
+        if self.label == "hurt-noise":
+            cats.append("hurt-noise")
+        return cats
+
     def as_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        d["rg_display"] = self.rg_display
+        return d
 
 
 # --------------------------------------------------------------------------
@@ -99,13 +128,36 @@ def classify_traffic(packet: EvidencePacket) -> str:
     return "candidate"
 
 
+_STALL_MIN_SYMBOLS = 2
+
+
+def _is_rg_stall(status: str, diag: dict[str, Any]) -> bool:
+    """A *stall* is the watch pattern seen on 2026-09-06 (not reproducible on
+    demand): the collector timed out and every searched symbol timed out too,
+    so the packet carries zero lexical evidence although rg itself is fast.
+    A single slow symbol among fast ones is a partial timeout, not a stall."""
+    if status != "timeout":
+        return False
+    try:
+        searched = int(diag.get("symbols_searched") or 0)
+        timed_out = int(diag.get("symbols_timeout") or 0)
+    except (TypeError, ValueError):
+        return False
+    return searched >= _STALL_MIN_SYMBOLS and timed_out == searched
+
+
 def summarize(packet: EvidencePacket, path: str) -> PacketSummary:
     status = {run.name: run.status for run in packet.collectors_run}
     degraded = any(s in ("error", "timeout") for s in status.values())
     rg_outcome = None
+    rg_truncated = False
+    rg_stall = False
     for run in packet.collectors_run:
         if run.name == "ripgrep" and isinstance(run.diagnostic, dict):
-            rg_outcome = run.diagnostic.get("outcome") or run.status
+            diag = run.diagnostic
+            rg_outcome = diag.get("outcome") or run.status
+            rg_truncated = bool(diag.get("truncated"))
+            rg_stall = _is_rg_stall(run.status, diag)
     return PacketSummary(
         packet_id=packet.packet_id,
         created_at=packet.created_at,
@@ -118,6 +170,8 @@ def summarize(packet: EvidencePacket, path: str) -> PacketSummary:
         collector_status=status,
         degraded=degraded,
         rg_outcome=rg_outcome,
+        rg_truncated=rg_truncated,
+        rg_stall=rg_stall,
         head_state=packet.identity.head_state,
         head_bound=packet.identity.head is not None,
         session_id=packet.identity.session_id,
@@ -350,6 +404,9 @@ class Aggregates:
     unlabeled_candidates: int
     labeled_candidates: int = 0
     head_unbound: int = 0
+    rg_truncated: int = 0
+    rg_stall: int = 0
+    incidents: dict[str, int] = field(default_factory=dict)
 
     @property
     def degraded_rate(self) -> float:
@@ -364,9 +421,13 @@ def aggregate(summaries: list[PacketSummary]) -> Aggregates:
     head_states: dict[str, int] = {}
     labels = {label: 0 for label in LABELS}
     degraded = 0
+    incidents: dict[str, int] = {}
     latencies: list[float] = []
     for s in summaries:
         by_traffic[s.traffic] = by_traffic.get(s.traffic, 0) + 1
+        if s.traffic == "candidate":  # incidents are counted on human-task packets only
+            for cat in s.incidents:
+                incidents[cat] = incidents.get(cat, 0) + 1
         degraded += int(s.degraded)
         latencies.append(s.total_ms)
         for name, status in s.collector_status.items():
@@ -391,6 +452,9 @@ def aggregate(summaries: list[PacketSummary]) -> Aggregates:
         unlabeled_candidates=sum(1 for s in summaries if s.traffic == "candidate" and s.label is None),
         labeled_candidates=sum(1 for s in summaries if s.traffic == "candidate" and s.label is not None),
         head_unbound=sum(1 for s in summaries if not s.head_bound),
+        rg_truncated=sum(1 for s in summaries if s.rg_truncated),
+        rg_stall=sum(1 for s in summaries if s.rg_stall),
+        incidents=incidents,
     )
 
 
@@ -425,6 +489,11 @@ def window_due(
         reasons.append(
             f"{aggregates.unlabeled_candidates} unlabeled candidate packets (threshold {cands})"
         )
+    incident_threshold = cfg.review_threshold("incident_threshold")
+    if incident_threshold:
+        for cat, n in sorted(aggregates.incidents.items()):
+            if n >= incident_threshold:
+                reasons.append(f"{n} candidate packets with {cat} incidents (threshold {incident_threshold})")
     return reasons
 
 
@@ -456,7 +525,7 @@ def render_inventory(inv: Inventory, window: dict[str, Any] | None, *, only_wind
     for s in rows:
         lines.append(
             f"{s.packet_id[:14]:<14} {s.created_at[:19]:<20} {s.traffic:<9} {s.symbol_count:>3} "
-            f"{(s.rg_outcome or s.collector_status.get('ripgrep', '-')):<15} "
+            f"{(s.rg_display if s.rg_outcome else s.collector_status.get('ripgrep', '-')):<15} "
             f"{s.collector_status.get('git', '-'):<8} {s.total_ms:>7.0f}  {s.label or ''}"
         )
     return "\n".join(lines) + "\n"
@@ -467,7 +536,7 @@ def render_sample(chosen: list[PacketSummary], *, seed: int) -> str:
     for s in chosen:
         lines.append(
             f"{s.packet_id}  {s.created_at[:19]}  {s.traffic:<9} sym={s.symbol_count} "
-            f"rg={s.rg_outcome or '-'}  {_display_path(s.path)}"
+            f"rg={s.rg_display}  {_display_path(s.path)}"
         )
     if chosen:
         lines += ["", "review with:  evidence replay <path>",
@@ -480,7 +549,7 @@ def render_queue(chosen: list[PacketSummary], *, window_name: str | None) -> str
     for s in chosen:
         lines.append(
             f"{s.packet_id}  {s.created_at[:19]}  {s.traffic:<9} sym={s.symbol_count} "
-            f"rg={s.rg_outcome or '-'}  {_display_path(s.path)}"
+            f"rg={s.rg_display}  {_display_path(s.path)}"
         )
     if chosen:
         lines += ["", "review with:  evidence replay <path>",
@@ -546,6 +615,19 @@ def render_status(
         lines.append(f"  {name:<9}  " + "  ".join(f"{k}={v}" for k, v in sorted(statuses.items())))
     if agg.rg_outcomes:
         lines.append("  rg outcome " + "  ".join(f"{k}={v}" for k, v in sorted(agg.rg_outcomes.items())))
+    lines.append(
+        f"  rg capped  {agg.rg_truncated} packet(s) truncated by the total match cap"
+        " (lowest-ranked symbols never searched; shown as rg=...+capped)"
+    )
+    lines.append(
+        f"  rg stall   {agg.rg_stall} packet(s) where every searched symbol timed out"
+        " (watch metric; expect 0, shown as rg=...+stall)"
+    )
+    if agg.incidents:
+        lines.append(
+            "  incidents  " + "  ".join(f"{k}={v}" for k, v in sorted(agg.incidents.items()))
+            + "  (candidate packets only)"
+        )
     lines.append("  head_state " + "  ".join(f"{k}={v}" for k, v in sorted(agg.head_states.items())))
     lines.append(f"  head       {agg.head_unbound} packet(s) without a head commit (watch metric; expect 0)")
     lat = agg.latency_ms

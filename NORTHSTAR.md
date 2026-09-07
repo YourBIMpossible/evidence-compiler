@@ -27,6 +27,8 @@ It provides:
 - A fail-open Claude Code Desktop adapter.
 - Contract, fixture, and regression tests with CI coverage.
 - Repository/worktree/HEAD identity binding and replay mismatch warnings.
+- A Python-native, fail-open hook launcher and bounded packet retention.
+- A local `evidence review` command (inventory, queue, label, status, remind).
 
 Phase 1A does not obligate a linear sequence of future phases. It is the
 stable foundation from which future work must be earned by demonstrated use.
@@ -87,6 +89,26 @@ Compiler must not autonomously select, create, begin, or implement a phase.
 
 If no repeated high-cost gap appears, freeze at Phase 1A. That is successful
 validation, not stagnation.
+
+### Review windows
+
+- **Window 2 — closed 2026-09-06 (reviewed).** Labels: helped 0, neutral 18,
+  hurt/noise 4, insufficient 1. Interpretation is limited: a Windows ripgrep
+  decode defect (since fixed) removed the lexical pass from a large share of
+  the sampled packets, so the window measured breakage more than usefulness.
+- **Window 3 — started 2026-09-06 on v0.3.0** after the collector, timeout,
+  noise, Unicode, duplicate-reference, and review-tooling improvements.
+  Cadence: first review at 10 eligible human-task packets or 14 days,
+  whichever first; then every further 10 or 14 days; immediately when three
+  or more human-task packets share one incident category (degraded
+  collector, match-cap hit, ripgrep stall, or `hurt/noise`). Only packets
+  from genuine human prompts are labeled; harness, probe, and smoke traffic
+  is system traffic. Demonstrated usefulness means labeled `helped` packets
+  with a stated reason, not packet volume or collector health.
+- Frozen pending Window 3 evidence and an owner decision: capped-ripgrep
+  determinism redesign (reopens only after three distinct reviewed human-task
+  packets show cap truncation hid needed evidence), and any public release or
+  PyPI publication.
 
 ## Candidate directions
 

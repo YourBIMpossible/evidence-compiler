@@ -5,6 +5,17 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Done
 
+- 2026-09-06 — **Window 3 follow-through pass — final report**
+  ([docs/dogfood/2026-09-06__w3-followthrough.md](docs/dogfood/2026-09-06__w3-followthrough.md)).
+  PR #14 merged as `358ea45`, v0.3.1 live-installed. Review telemetry: capped
+  packets shown `rg=matches+capped`, stalls `rg=timeout+stall`, incident
+  categories with an immediate `REVIEW DUE` at 3 same-category human-task
+  packets; first-probe git timeout now `head_state=probe_timeout` (was bare
+  `head: null`). Determinism flake confirmed as load-induced collector drift
+  (20 serial 1 fail → 0; 20 under load 12 fail → 0 fail / 8 skip) and fixed
+  test-side. rg stall streak 0/14 reproductions → watch metric. Cadence
+  documented (`docs/dogfood-review.md` §6.1). NORTHSTAR W2→W3 patch proposed
+  in the report, not applied. Labels written: 0.
 - 2026-09-06 — **Window 3 activation pass — final report**
   ([docs/dogfood/2026-09-06__w3-activation-pass.md](docs/dogfood/2026-09-06__w3-activation-pass.md)).
   v0.3.0 live-installed (`92b4e33`); downstream git/rg timeouts 250/500 →
@@ -76,6 +87,19 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
     the collector defect below.
 
 ## Roadmap / queued
+
+- 2026-09-06 — **Frozen: ripgrep total match cap (`_MAX_TOTAL_MATCHES = 100`,
+  25/symbol) and its collection-before-ranking order.** Reopen only after at
+  least three distinct, reviewed human-task packets show that cap truncation
+  hid needed evidence or caused degraded output. Telemetry to detect that is
+  live (`rg=matches+capped`, `incidents cap_hit`). Related freeze
+  `EC-RG-CAP-DET` (capped-rg determinism redesign) unchanged; the 2026-09-06
+  determinism flake was load-induced collector drift, not cap-related — see
+  the follow-through report.
+- 2026-09-06 — **Watch: rg stall** (every searched symbol times out while rg
+  itself answers in < 100 ms). 0/14 reproductions; surfaced as
+  `rg=timeout+stall` and incident category `rg_stall`. No collector change
+  unless it recurs on human-task packets.
 
 - 2026-09-06 — **/review-all on the W3 pass** (read-only, 13 retained, 0 dropped):
   [docs/reviews/2026-09-06__review-all__w3-pass.md](docs/reviews/2026-09-06__review-all__w3-pass.md).

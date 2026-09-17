@@ -88,10 +88,13 @@ def _score_item(
         reasons.append("same module as active file")
 
     # lexical lane
-    if item.source_claim.kind in ("lexical_match", "lexical_def"):
+    # Filename-stem items share the lexical lane and weight; no new weight.
+    if item.source_claim.kind in ("lexical_match", "lexical_def", "lexical_filename"):
         comp.lexical_reference = W_LEXICAL
         if item.source_claim.kind == "lexical_def":
             reasons.append("exact symbol definition (lexical)")
+        elif item.source_claim.kind == "lexical_filename":
+            reasons.append("file name exactly matches prompt symbol")
         else:
             reasons.append("exact lexical match")
 

@@ -39,6 +39,8 @@ from .base import (
     RawNegative,
     normalize_reference,
 )
+from ..refs import split_line_suffix
+from . import filenames
 
 # Guardrails so duplicate-heavy input cannot explode the packet.
 _MAX_MATCHES_PER_SYMBOL = 25
@@ -206,6 +208,14 @@ class RipgrepCollector(Collector):
             diagnostic["outcome"] = "no_matches"
             diagnostic["reason"] = "no lexical matches for any extracted symbol"
 
+        # Phase 3 - exact filename-stem evidence, outside both content caps and
+        # never counted toward them (see filenames.py).
+        stem_items, diagnostic["filename_stem"] = self._stem_items(context, symbols, items, deadline)
+        if stem_items:
+            items = items + stem_items
+            if status == "empty":
+                status = "ok"
+
         return EvidenceResult(
             collector=self.name,
             status=status,
@@ -214,6 +224,21 @@ class RipgrepCollector(Collector):
             diagnostic=diagnostic,
             error_message=error_message,
         )
+
+    @staticmethod
+    def _stem_items(
+        context: CollectorContext, symbols: list[str], items: list[RawClaim], deadline: float
+    ) -> tuple[list[RawClaim], dict]:
+        remaining_ms = int((deadline - time.perf_counter()) * 1000)
+        paths = filenames.tracked_files(
+            context.repository_root, context.head, max(min(remaining_ms, 1000), _MIN_CALL_MS)
+        )
+        if paths is None:
+            return [], {"outcome": "unavailable", "reason": "git ls-files did not answer"}
+        claims = filenames.stem_claims(symbols, _content_paths(items), paths)
+        for claim in claims:
+            claim.references = [normalize_reference(r, context.repository_root) for r in claim.references]
+        return claims, {"outcome": "ok", "items": len(claims)}
 
 
 def _search_batch(
@@ -327,6 +352,10 @@ def _unique_symbols(symbols: list[str]) -> list[str]:
             seen.add(s)
             out.append(s)
     return out
+
+
+def _content_paths(items: list[RawClaim]) -> set[str]:
+    return {split_line_suffix(ref)[0].lower() for claim in items for ref in claim.references}
 
 
 def _parse_rg_json(

@@ -88,10 +88,13 @@ def _score_item(
         reasons.append("same module as active file")
 
     # lexical lane
-    if item.source_claim.kind in ("lexical_match", "lexical_def"):
+    # Filename-stem items share the lexical lane and weight; no new weight.
+    if item.source_claim.kind in ("lexical_match", "lexical_def", "lexical_filename"):
         comp.lexical_reference = W_LEXICAL
         if item.source_claim.kind == "lexical_def":
             reasons.append("exact symbol definition (lexical)")
+        elif item.source_claim.kind == "lexical_filename":
+            reasons.append("file name exactly matches prompt symbol")
         else:
             reasons.append("exact lexical match")
 
@@ -149,9 +152,8 @@ def _select_under_budget(packet: EvidencePacket) -> None:
         for item in packet.evidence
         if item.compiler_assessment.relevance != "none"
     ]
-    candidates.sort(
-        key=lambda item: (-item.compiler_assessment.final_score, canonical_item_key(item))
-    )
+    symbols = [s.lower() for s in packet.task.extracted_symbols if s]
+    candidates.sort(key=lambda item: selection_key(item, symbols))
 
     candidate_tokens = sum(_item_tokens(item) for item in candidates)
     injected = 0
@@ -185,6 +187,26 @@ def _select_under_budget(packet: EvidencePacket) -> None:
     packet.budget.candidate_tokens = candidate_tokens
     packet.budget.injected_tokens = injected
     packet.budget.omitted_evidence_ids = omitted_ids
+
+
+def selection_key(item: EvidenceItem, symbols: list[str]) -> tuple:
+    """Budget-fill order. Primary is the frozen score; the rest only break ties.
+
+    Equal scores order by: exact filename-stem evidence first, then more
+    distinct prompt terms matched, then case-insensitive first reference path,
+    then the canonical key (full determinism). None of these change a score.
+    """
+    claimed = str(item.provenance.extra.get("symbol", "")).lower()
+    statement = item.source_claim.statement.lower()
+    distinct_terms = sum(1 for s in set(symbols) if s == claimed or s in statement)
+    refs = sorted(_norm(r).lower() for r in item.source_claim.references)
+    return (
+        -item.compiler_assessment.final_score,
+        0 if item.provenance.extra.get("exact_stem_match") is True else 1,
+        -distinct_terms,
+        refs[0] if refs else "",
+        canonical_item_key(item),
+    )
 
 
 def _item_tokens(item: EvidenceItem) -> int:

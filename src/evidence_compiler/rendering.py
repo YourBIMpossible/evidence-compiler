@@ -16,7 +16,7 @@ from .scoping import estimate_tokens
 # lane grouping by source_claim.kind
 _LANES: list[tuple[str, tuple[str, ...]]] = [
     ("Structural", ("graph_edge", "graph_path")),
-    ("Lexical", ("lexical_def", "lexical_match")),
+    ("Lexical", ("lexical_def", "lexical_filename", "lexical_match")),
     ("Repository", ("git_meta", "git_dirty")),
 ]
 _OTHER_LANE = "Other"

@@ -43,7 +43,7 @@ def test_many_symbols_use_at_most_two_processes(golden_repo, monkeypatch):
     calls = _count_runs(monkeypatch)
     symbols = ["AlphaService", "BetaService", "GammaThing", "nl_filter", "user_agent", "DeltaMissing"]
     result = RipgrepCollector().collect(make_context(golden_repo, "x", extracted_symbols=symbols))
-    assert len(calls) == 2
+    assert len([c for c in calls if c[0] != "git"]) == 2  # git ls-files is the filename-stem lookup
     assert result.diagnostic["symbols_total"] == len(symbols)
     accounted = (
         result.diagnostic["symbols_matched"]

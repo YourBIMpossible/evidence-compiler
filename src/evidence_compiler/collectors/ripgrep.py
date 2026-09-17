@@ -10,7 +10,7 @@ packet can always say *why* a symbol produced no evidence:
 
 - ``matches``        — at least one match was parsed into evidence
 - ``no_matches``     — rg ran to completion and found nothing
-- ``timeout``        — the per-symbol budget elapsed (rg was killed)
+- ``timeout``        — the search budget elapsed (rg was killed)
 - ``not_searched``   — the collector deadline was already spent
 - ``decode_error``   — rg output could not be read/decoded
 - ``process_error``  — rg exited with a non-search status (2+)
@@ -26,6 +26,7 @@ Window 2 defect (35 % of packets).
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import time
@@ -120,73 +121,38 @@ class RipgrepCollector(Collector):
                 )
             )
 
-        for index, symbol in enumerate(symbols):
+        # Phase 1 - search. Symbols are batched by match mode into at most two
+        # rg processes (one repository walk each) instead of one process per
+        # symbol: twelve sequential walks were the Window 3 timeout source
+        # (~70 ms each on a 2k-file repo, so a loaded machine overran the
+        # 1.5 s slice). Each symbol still ends in exactly one outcome.
+        per_symbol: dict[str, tuple[str, object]] = {}
+        batches = _batches(symbols)
+        for index, batch in enumerate(batches):
             remaining_ms = int((deadline - time.perf_counter()) * 1000)
             if remaining_ms < _MIN_CALL_MS:
-                # Deadline spent: account for every symbol that never ran so
-                # "not looked" is distinguishable from "looked, found none".
-                for later in symbols[index:]:
-                    _negative(later, "not_searched", budget_ms=context.timeout_ms)
+                # Deadline spent: "not looked" stays distinguishable from
+                # "looked, found none".
+                for later in batches[index:]:
+                    for symbol in later:
+                        per_symbol[symbol] = ("not_searched", {"budget_ms": context.timeout_ms})
                 break
-            # Dynamic budget: the remaining time is shared evenly across the
-            # symbols still to run, so fast searches donate their slack to
-            # later ones instead of a fixed slice starving the tail.
-            call_ms = max(remaining_ms // (len(symbols) - index), _MIN_CALL_MS)
+            # Remaining time is shared across the batches still to run.
+            call_ms = max(remaining_ms // (len(batches) - index), _MIN_CALL_MS)
             call_ms = min(call_ms, remaining_ms)
-            # snake_case candidates (including compound-derived ones like
-            # ``user_agent`` from ``User-Agent``) must also match when
-            # embedded in a longer identifier (``default_user_agent``), so
-            # they are searched as plain substrings. Everything else keeps
-            # whole-word matching to avoid noise inside unrelated words.
-            match_args = ["--fixed-strings"] if "_" in symbol else ["--word-regexp", "--fixed-strings"]
-            cmd = [rg, "--json", *match_args, *extra_args, symbol, "."]
-            logical_cmd = " ".join([_RG_LOGICAL, *cmd[1:]])
-            try:
-                proc = subprocess.run(
-                    cmd,
-                    cwd=root,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=call_ms / 1000.0,
-                    check=False,
-                )
-            except subprocess.TimeoutExpired:
-                _negative(symbol, "timeout", budget_ms=call_ms)
-                continue
-            except OSError as exc:
-                # Isolate the failure to this symbol only — matches already
-                # accumulated for prior symbols in this run remain valid and
-                # must not be discarded (interface §4 failure isolation).
-                _negative(symbol, "launch_error", error_type=type(exc).__name__)
-                continue
+            per_symbol.update(_search_batch(rg, root, batch, extra_args, call_ms, context, deadline))
 
-            if proc.stdout is None:
-                # The reader thread died (historically: platform-codec decode
-                # failure). Explicit UTF-8 decoding should make this
-                # unreachable, but the guard keeps a regression from
-                # escalating into an AttributeError crash of the whole pass.
-                _negative(symbol, "decode_error", reason="rg stdout could not be read")
+        # Phase 2 - account and cap, in symbol rank order. Caps behave exactly
+        # as before batching: per-symbol cap in rg stream order, then the total
+        # cap filled best-ranked symbol first; symbols past the total cap are
+        # reported ``not_searched`` with the cap as the reason.
+        for index, symbol in enumerate(symbols):
+            category, payload = per_symbol[symbol]
+            if category != "matches":
+                _negative(symbol, category, **payload)  # type: ignore[arg-type]
                 continue
-
-            if proc.returncode not in (0, 1):
-                # 2 = rg error; keep going for other symbols but note it
-                _negative(
-                    symbol,
-                    "process_error",
-                    rg_returncode=proc.returncode,
-                    stderr=(proc.stderr or "")[:200],
-                )
-                continue
-
-            matches = _parse_rg_json(proc.stdout, context, symbol, logical_cmd)
-            if not matches:
-                _negative(symbol, "no_matches", symbol_found_in_text=False)
-                continue
-
             counts["matches"] += 1
-            for claim in matches:
+            for claim in payload:  # type: ignore[union-attr]
                 if total >= _MAX_TOTAL_MATCHES:
                     truncated = True
                     break
@@ -250,6 +216,108 @@ class RipgrepCollector(Collector):
         )
 
 
+def _search_batch(
+    rg: str,
+    root: str,
+    batch: list[str],
+    extra_args: list[str],
+    call_ms: int,
+    context: CollectorContext,
+    deadline: float,
+) -> dict[str, tuple[str, object]]:
+    """Search ``batch`` in one rg process: ``{symbol: (outcome, payload)}``.
+
+    ``payload`` is the symbol's claim list for ``matches`` and the negative
+    diagnostic detail otherwise. A process or launch error on a multi-symbol batch
+    is retried one symbol at a time, so one bad pattern cannot poison its
+    batch-mates (interface section 4 failure isolation).
+    """
+    cmd = [rg, "--json", *_match_args(batch[0]), *extra_args]
+    for symbol in batch:
+        cmd += ["-e", symbol]
+    cmd.append(".")
+    outcome = _run_rg(cmd, root, call_ms)
+    if isinstance(outcome, tuple):
+        category, detail = outcome
+        if category in ("process_error", "launch_error") and len(batch) > 1:
+            results: dict[str, tuple[str, object]] = {}
+            for i, symbol in enumerate(batch):
+                remaining_ms = int((deadline - time.perf_counter()) * 1000)
+                if remaining_ms < _MIN_CALL_MS:
+                    for later in batch[i:]:
+                        results[later] = ("not_searched", {"budget_ms": context.timeout_ms})
+                    break
+                call = max(remaining_ms // (len(batch) - i), _MIN_CALL_MS)
+                results.update(_search_batch(rg, root, [symbol], extra_args, min(call, remaining_ms), context, deadline))
+            return results
+        if category == "timeout":
+            detail = {"budget_ms": call_ms}
+        return {symbol: (category, detail) for symbol in batch}
+
+    logical_cmd = " ".join([_RG_LOGICAL, *cmd[1:]])
+    by_symbol = _parse_rg_json(outcome, context, batch, logical_cmd)
+    return {
+        symbol: ("matches", by_symbol[symbol])
+        if by_symbol[symbol]
+        else ("no_matches", {"symbol_found_in_text": False})
+        for symbol in batch
+    }
+
+
+def _match_args(symbol: str) -> list[str]:
+    # snake_case candidates (including compound-derived ones like
+    # ``user_agent`` from ``User-Agent``) must also match when embedded in a
+    # longer identifier (``default_user_agent``), so they are searched as
+    # plain substrings. Everything else keeps whole-word matching to avoid
+    # noise inside unrelated words.
+    return ["--fixed-strings"] if "_" in symbol else ["--word-regexp", "--fixed-strings"]
+
+
+def _batches(symbols: list[str]) -> list[list[str]]:
+    """Group symbols by match mode, preserving rank order within each group.
+
+    The group holding the best-ranked symbol runs first, so a spent deadline
+    starves the weaker symbols as the one-process-per-symbol loop did.
+    """
+    groups: dict[bool, list[str]] = {}
+    for symbol in symbols:
+        groups.setdefault("_" in symbol, []).append(symbol)
+    return list(groups.values())
+
+
+def _run_rg(cmd: list[str], root: str, call_ms: int) -> str | tuple[str, dict]:
+    """rg stdout for a completed search, else ``(outcome_category, detail)``."""
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=call_ms / 1000.0,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return "timeout", {}
+    except OSError as exc:
+        return "launch_error", {"error_type": type(exc).__name__}
+    if proc.stdout is None:
+        # The reader thread died (historically: platform-codec decode
+        # failure). Explicit UTF-8 decoding should make this unreachable, but
+        # the guard keeps a regression from escalating into a crash.
+        return "decode_error", {"reason": "rg stdout could not be read"}
+    if proc.returncode not in (0, 1):
+        return "process_error", {"rg_returncode": proc.returncode, "stderr": (proc.stderr or "")[:200]}
+    return proc.stdout
+
+
+def _symbol_pattern(symbol: str) -> re.Pattern[str]:
+    """Attribution matcher mirroring the rg match mode used for ``symbol``."""
+    escaped = re.escape(symbol)
+    return re.compile(escaped if "_" in symbol else rf"(?<!\w){escaped}(?!\w)")
+
+
 def _unique_symbols(symbols: list[str]) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
@@ -262,12 +330,19 @@ def _unique_symbols(symbols: list[str]) -> list[str]:
 
 
 def _parse_rg_json(
-    stdout: str, context: CollectorContext, symbol: str, command: str
-) -> list[RawClaim]:
-    claims: list[RawClaim] = []
-    per_symbol = 0
+    stdout: str, context: CollectorContext, symbols: list[str], command: str
+) -> dict[str, list[RawClaim]]:
+    """Claims per symbol from one multi-pattern rg run.
+
+    rg reports a matching line once whichever pattern hit, so each line is
+    attributed by re-testing every symbol against its text; a symbol whose
+    match overlaps another pattern's on the same line is still credited.
+    Each symbol keeps its own cap, filled in rg stream order.
+    """
+    patterns = {symbol: _symbol_pattern(symbol) for symbol in symbols}
+    claims: dict[str, list[RawClaim]] = {symbol: [] for symbol in symbols}
     for line in stdout.splitlines():
-        if per_symbol >= _MAX_MATCHES_PER_SYMBOL:
+        if all(len(claims[s]) >= _MAX_MATCHES_PER_SYMBOL for s in symbols):
             break
         line = line.strip()
         if not line:
@@ -275,7 +350,7 @@ def _parse_rg_json(
         try:
             record = json.loads(line)
         except (ValueError, json.JSONDecodeError):
-            # malformed output line — skip, do not crash (interface spec §7)
+            # malformed output line - skip, do not crash (interface spec section 7)
             continue
         if record.get("type") != "match":
             continue
@@ -286,22 +361,24 @@ def _parse_rg_json(
             continue
         matched_text = _text_of(data.get("lines")).strip()
         ref = normalize_reference(f"{path_text}:{line_no}", context.repository_root)
-        kind = "lexical_def" if _looks_like_def(matched_text, symbol) else "lexical_match"
         snippet = matched_text[:160]
-        claims.append(
-            RawClaim(
-                kind=kind,
-                statement=f"{symbol} at {ref}"
-                + (f"  |  {snippet}" if snippet else ""),
-                references=[ref],
-                authority="inferred",
-                freshness="current",
-                confidence=0.6 if kind == "lexical_match" else 0.7,
-                command=command,
-                extra={"symbol": symbol, "line": line_no, "snippet": snippet},
+        for symbol in symbols:
+            if len(claims[symbol]) >= _MAX_MATCHES_PER_SYMBOL or not patterns[symbol].search(matched_text):
+                continue
+            kind = "lexical_def" if _looks_like_def(matched_text, symbol) else "lexical_match"
+            claims[symbol].append(
+                RawClaim(
+                    kind=kind,
+                    statement=f"{symbol} at {ref}"
+                    + (f"  |  {snippet}" if snippet else ""),
+                    references=[ref],
+                    authority="inferred",
+                    freshness="current",
+                    confidence=0.6 if kind == "lexical_match" else 0.7,
+                    command=command,
+                    extra={"symbol": symbol, "line": line_no, "snippet": snippet},
+                )
             )
-        )
-        per_symbol += 1
     return claims
 
 

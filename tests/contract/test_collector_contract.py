@@ -103,8 +103,8 @@ def test_rg_duplicate_heavy_input_capped(tmp_path):
 def test_rg_malformed_json_lines_skipped():
     ctx = make_context("/repo", "X", extracted_symbols=["X"])
     stdout = 'not json\n{"type":"other"}\n{bad json\n'
-    claims = _parse_rg_json(stdout, ctx, "X", ["rg", "X"])
-    assert claims == []  # nothing usable, but no exception
+    claims = _parse_rg_json(stdout, ctx, ["X"], "rg X")
+    assert claims == {"X": []}  # nothing usable, but no exception
 
 
 @rg_required
@@ -119,15 +119,14 @@ def test_rg_skipped_when_binary_missing(monkeypatch, golden_repo):
 @rg_required
 def test_rg_oserror_on_one_symbol_preserves_prior_matches(monkeypatch, golden_repo):
     # F-5 regression: a launch failure on symbol N must not discard matches
-    # already found for symbols 1..N-1 (per-symbol failure isolation).
+    # already found for symbols 1..N-1 (per-symbol failure isolation). With
+    # batched search the failing batch is retried one symbol at a time.
     import subprocess as subprocess_mod
 
     real_run = subprocess_mod.run
-    calls = {"n": 0}
 
     def flaky_run(cmd, **kwargs):
-        calls["n"] += 1
-        if calls["n"] == 2:
+        if "BetaService" in cmd:
             raise OSError("simulated launch failure")
         return real_run(cmd, **kwargs)
 

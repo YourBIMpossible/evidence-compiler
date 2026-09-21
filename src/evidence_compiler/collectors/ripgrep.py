@@ -229,9 +229,20 @@ class RipgrepCollector(Collector):
     def _stem_items(
         context: CollectorContext, symbols: list[str], items: list[RawClaim], deadline: float
     ) -> tuple[list[RawClaim], dict]:
+        # The collector-wide deadline is authoritative. With no slice left, do
+        # NOT launch git ls-files: the earlier content evidence is already
+        # collected and must survive, and an overrun here would corrupt the
+        # very live-timeout measurement this lookup feeds. A deadline skip is a
+        # distinct state, never a no-match.
         remaining_ms = int((deadline - time.perf_counter()) * 1000)
+        if remaining_ms < _MIN_CALL_MS:
+            return [], {
+                "outcome": "skipped",
+                "reason": "collector deadline exhausted before filename-stem lookup",
+                "remaining_ms": remaining_ms,
+            }
         paths = filenames.tracked_files(
-            context.repository_root, context.head, max(min(remaining_ms, 1000), _MIN_CALL_MS)
+            context.repository_root, context.head, min(remaining_ms, filenames._LS_FILES_TIMEOUT_MS)
         )
         if paths is None:
             return [], {"outcome": "unavailable", "reason": "git ls-files did not answer"}

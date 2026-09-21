@@ -5,11 +5,13 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import time
 
 import pytest
 
 from evidence_compiler.collectors import filenames
 from evidence_compiler.collectors import ripgrep as rgmod
+from evidence_compiler.collectors.base import RawClaim
 from evidence_compiler.collectors.ripgrep import RipgrepCollector
 from tests.support import make_context
 
@@ -109,3 +111,96 @@ def test_tracked_files_cache_is_keyed_by_head(monkeypatch, tmp_path):
     cache.parent.mkdir(parents=True)
     cache.write_text("cached/one.py", encoding="utf-8")
     assert filenames.tracked_files(str(tmp_path / "repo"), "abc") == ["cached/one.py"]
+
+
+# --- collector-deadline respect for filename-stem lookup (fix/stem-respect-deadline) ---
+
+
+def _content_item(path: str) -> RawClaim:
+    return RawClaim(
+        kind="lexical_content",
+        statement=f"content hit in {path}",
+        references=[path],
+        authority="observed",
+        freshness="current",
+        confidence=0.9,
+        command="rg",
+        extra={"symbol": "x", "evidence_source": "ripgrep"},
+    )
+
+
+def test_expired_deadline_never_calls_git(monkeypatch):
+    """No slice left -> git ls-files is never launched; state is 'skipped', not a no-match."""
+    called = {"n": 0}
+
+    def boom(*a, **k):  # pragma: no cover - must not run
+        called["n"] += 1
+        raise AssertionError("tracked_files must not run past the deadline")
+
+    monkeypatch.setattr(filenames, "tracked_files", boom)
+    ctx = make_context("/repo", "x", extracted_symbols=["nl_filter"], head="abc")
+    items, diag = RipgrepCollector._stem_items(ctx, ["nl_filter"], [], time.perf_counter() - 1.0)
+    assert called["n"] == 0
+    assert items == []
+    assert diag["outcome"] == "skipped"
+    assert "deadline" in diag["reason"].lower()
+
+
+def test_positive_time_passes_upper_bounded_timeout(monkeypatch):
+    """Remaining budget is forwarded, capped at the git ls-files upper bound."""
+    seen = {}
+
+    def spy(root, head, timeout_ms=filenames._LS_FILES_TIMEOUT_MS):
+        seen["timeout_ms"] = timeout_ms
+        return ["backend/aec/nl_filter.py"]
+
+    monkeypatch.setattr(filenames, "tracked_files", spy)
+    ctx = make_context("/repo", "x", extracted_symbols=["nl_filter"], head="abc")
+    # 30 s remaining -> must be clamped to the 1000 ms upper bound.
+    items, diag = RipgrepCollector._stem_items(ctx, ["nl_filter"], [], time.perf_counter() + 30.0)
+    assert seen["timeout_ms"] == filenames._LS_FILES_TIMEOUT_MS
+    assert 0 < seen["timeout_ms"] <= filenames._LS_FILES_TIMEOUT_MS
+    assert diag["outcome"] == "ok"
+    assert [c.references for c in items] == [["backend/aec/nl_filter.py"]]
+
+
+def test_short_remaining_time_passed_through_not_floored(monkeypatch):
+    """A remaining slice above the minimum but below the cap is forwarded as-is."""
+    seen = {}
+
+    def spy(root, head, timeout_ms=filenames._LS_FILES_TIMEOUT_MS):
+        seen["timeout_ms"] = timeout_ms
+        return []
+
+    monkeypatch.setattr(filenames, "tracked_files", spy)
+    ctx = make_context("/repo", "x", extracted_symbols=["nl_filter"], head="abc")
+    items, diag = RipgrepCollector._stem_items(ctx, ["nl_filter"], [], time.perf_counter() + 0.4)
+    assert rgmod._MIN_CALL_MS <= seen["timeout_ms"] <= filenames._LS_FILES_TIMEOUT_MS
+
+
+def test_skipped_lookup_preserves_existing_content_evidence():
+    """A deadline skip must not erase already-collected ripgrep items or force a no-match."""
+    content = [_content_item("backend/aec/nl_filter.py")]
+    items, diag = RipgrepCollector._stem_items(
+        make_context("/repo", "x", extracted_symbols=["nl_filter"], head="abc"),
+        ["nl_filter"], content, time.perf_counter() - 0.5,
+    )
+    assert items == []                       # stem lookup contributes nothing
+    assert diag["outcome"] == "skipped"      # and says why
+    assert content == [_content_item("backend/aec/nl_filter.py")]  # content untouched
+
+
+def test_diagnostic_states_are_distinct(monkeypatch):
+    """succeeded vs unavailable/error vs deadline-skipped are three distinct outcomes."""
+    ctx = make_context("/repo", "x", extracted_symbols=["nl_filter"], head="abc")
+
+    monkeypatch.setattr(filenames, "tracked_files", lambda *a, **k: ["backend/aec/nl_filter.py"])
+    _, ok = RipgrepCollector._stem_items(ctx, ["nl_filter"], [], time.perf_counter() + 5.0)
+
+    monkeypatch.setattr(filenames, "tracked_files", lambda *a, **k: None)
+    _, unavailable = RipgrepCollector._stem_items(ctx, ["nl_filter"], [], time.perf_counter() + 5.0)
+
+    _, skipped = RipgrepCollector._stem_items(ctx, ["nl_filter"], [], time.perf_counter() - 5.0)
+
+    outcomes = {ok["outcome"], unavailable["outcome"], skipped["outcome"]}
+    assert outcomes == {"ok", "unavailable", "skipped"}

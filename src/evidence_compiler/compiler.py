@@ -13,7 +13,7 @@ import threading
 import time
 from dataclasses import dataclass, replace
 
-from . import gitprobe, scoping
+from . import gitprobe, scoping, secondary
 from .collectors import BUILTIN_COLLECTORS, Collector, CollectorContext, run_collector_safely
 from .collectors.base import EvidenceResult, RawClaim, RawNegative
 from .config import Config, load_config
@@ -37,6 +37,7 @@ from .rendering import RenderResult, render_brief
 
 
 _IDENTITY_PROBE_MS = 1000
+_SECONDARY_SUFFIX = "@secondary"
 
 
 @dataclass
@@ -114,9 +115,41 @@ def compile_packet(
 
     active = collectors if collectors is not None else _default_collectors()
 
+    # -- secondary scope (owner allow-list only; see secondary.py) ---------
+    decision = (
+        secondary.decide(prompt, repository_root, cfg.allowed_roots, markup_tags=cfg.markup_tags)
+        if cfg.allowed_roots
+        else secondary.Decision(secondary.NONE)
+    )
+    jobs: list[tuple[str, Collector, CollectorContext]] = [(c.name, c, context) for c in active]
+    second_root: str | None = None
+    if decision.status == secondary.ALLOWED and decision.root:
+        second_root = decision.root
+        second_ctx = replace(
+            context,
+            repository_root=second_root,
+            cwd=second_root,
+            active_file=None,
+            worktree_id=None,
+            dirty_paths=[],
+            head=None,
+        )
+        jobs += [(f"{c.name}{_SECONDARY_SUFFIX}", c, second_ctx) for c in active]
+
     # -- collect (parallel, deadline-bounded, failure-isolated) -------------
+    # A second scope shares the same end-to-end deadline and splits every
+    # per-collector timeout, so total collection time stays fixed.
     t0 = time.perf_counter()
-    results, runs = _run_collectors(active, context, cfg, deadline)
+    results, runs = _run_collectors(jobs, cfg, deadline, split=2 if second_root else 1)
+    if decision.status not in (secondary.NONE, secondary.SAME):
+        runs.append(
+            CollectorRun(
+                name=f"scope{_SECONDARY_SUFFIX}",
+                status="ok" if second_root else "skipped",
+                duration_ms=0.0,
+                diagnostic=decision.as_diagnostic(),
+            )
+        )
     stages["collect_ms"] = _ms(t0)
 
     # -- assemble packet ----------------------------------------------------
@@ -132,14 +165,16 @@ def compile_packet(
     packet.budget.default_tokens = cfg.budget["default_tokens"]
     packet.budget.max_tokens = cfg.budget["max_tokens"]
 
-    for collector in active:
-        result = results.get(collector.name)
+    for run_name, _collector, ctx in jobs:
+        result = results.get(run_name)
         if result is None:
             continue
+        root = ctx.repository_root if second_root else None
+        qualify = ctx.repository_root if ctx is not context else None
         for claim in result.items:
-            packet.evidence.append(_to_item(claim, collector.name))
+            packet.evidence.append(_to_item(claim, run_name, root=root, qualify=qualify))
         for neg in result.negative_items:
-            packet.negative_evidence.append(_to_negative(neg, collector.name))
+            packet.negative_evidence.append(_to_negative(neg, run_name))
     stages["assemble_ms"] = _ms(t0)
 
     # -- rank ---------------------------------------------------------------
@@ -188,11 +223,13 @@ def _default_collectors() -> list[Collector]:
 
 
 def _run_collectors(
-    collectors: list[Collector], context: CollectorContext, cfg: Config, deadline_ms: int
+    jobs: list[tuple[str, Collector, CollectorContext]], cfg: Config, deadline_ms: int, *, split: int = 1
 ) -> tuple[dict[str, EvidenceResult], list[CollectorRun]]:
-    """Run each enabled collector on its own daemon thread, bounded by an
-    end-to-end deadline. Disabled collectors are recorded as ``skipped``;
-    collectors still running at the deadline are recorded as ``timeout``.
+    """Run each enabled job (run name, collector, context) on its own daemon
+    thread, bounded by an end-to-end deadline. Disabled collectors are
+    recorded as ``skipped``; jobs still running at the deadline are recorded
+    as ``timeout``. ``split`` divides every per-collector timeout so that an
+    extra scope never extends total collection time.
 
     Daemon threads guarantee that a genuinely hung collector cannot hold up
     process exit for the adapter — we stop *waiting*, the packet is assembled
@@ -200,57 +237,56 @@ def _run_collectors(
     """
     results: dict[str, EvidenceResult] = {}
     threads: dict[str, threading.Thread] = {}
-    enabled: list[Collector] = []
+    enabled: list[tuple[str, Collector, CollectorContext]] = []
     runs_by_name: dict[str, CollectorRun] = {}
 
-    for collector in collectors:
-        name = collector.name
-        if not cfg.collector_enabled(name):
-            runs_by_name[name] = CollectorRun(
-                name=name,
+    for run_name, collector, ctx in jobs:
+        if not cfg.collector_enabled(collector.name):
+            runs_by_name[run_name] = CollectorRun(
+                name=run_name,
                 status="skipped",
                 duration_ms=0.0,
                 diagnostic={"reason": "disabled in config"},
             )
             continue
-        enabled.append(collector)
+        enabled.append((run_name, collector, ctx))
 
-    def worker(col: Collector, ctx: CollectorContext) -> None:
-        results[col.name] = run_collector_safely(col, ctx)
+    def worker(run_name: str, col: Collector, ctx: CollectorContext) -> None:
+        results[run_name] = run_collector_safely(col, ctx)
 
     launch = time.perf_counter()
-    for collector in enabled:
-        ctx = replace(context, timeout_ms=cfg.collector_timeout_ms(collector.name))
-        t = threading.Thread(target=worker, args=(collector, ctx), daemon=True)
-        threads[collector.name] = t
+    for run_name, collector, ctx in enabled:
+        timeout = max(cfg.collector_timeout_ms(collector.name) // max(split, 1), 1)
+        job_ctx = replace(ctx, timeout_ms=timeout)
+        t = threading.Thread(target=worker, args=(run_name, collector, job_ctx), daemon=True)
+        threads[run_name] = t
         t.start()
 
     deadline_at = launch + max(deadline_ms, 1) / 1000.0
-    for name, t in threads.items():
+    for t in threads.values():
         remaining = deadline_at - time.perf_counter()
         t.join(timeout=max(remaining, 0.0))
 
-    for collector in enabled:
-        name = collector.name
-        result = results.get(name)
+    for run_name, _collector, _ctx in enabled:
+        result = results.get(run_name)
         if result is None:
             # never finished before the end-to-end deadline
-            runs_by_name[name] = CollectorRun(
-                name=name,
+            runs_by_name[run_name] = CollectorRun(
+                name=run_name,
                 status="timeout",
                 duration_ms=round((time.perf_counter() - launch) * 1000.0, 3),
                 diagnostic={"reason": "end-to-end deadline exceeded before collector returned"},
             )
         else:
-            runs_by_name[name] = CollectorRun(
-                name=name,
+            runs_by_name[run_name] = CollectorRun(
+                name=run_name,
                 status=result.status,
                 duration_ms=result.duration_ms,
                 diagnostic=dict(result.diagnostic or {}),
             )
 
-    # preserve registration order in collectors_run
-    ordered = [runs_by_name[c.name] for c in collectors if c.name in runs_by_name]
+    # preserve job (registration) order in collectors_run
+    ordered = [runs_by_name[name] for name, _c, _x in jobs if name in runs_by_name]
     return results, ordered
 
 
@@ -259,12 +295,25 @@ def _run_collectors(
 # --------------------------------------------------------------------------
 
 
-def _to_item(claim: RawClaim, collector_name: str) -> EvidenceItem:
+def _to_item(
+    claim: RawClaim, collector_name: str, *, root: str | None = None, qualify: str | None = None
+) -> EvidenceItem:
+    """``root`` records scope provenance when more than one scope ran;
+    ``qualify`` (secondary scope only) root-qualifies statement and references
+    so they can never be read as session-root paths."""
+    extra = dict(claim.extra or {})
+    if root:
+        extra["root"] = root
+    statement = claim.statement
+    references = list(claim.references)
+    if qualify:
+        statement = f"{statement} (in {qualify})"
+        references = [r if r.startswith(qualify) else f"{qualify}/{r.lstrip('/')}" for r in references]
     return EvidenceItem(
         source_claim=SourceClaim(
             kind=claim.kind,
-            statement=claim.statement,
-            references=list(claim.references),
+            statement=statement,
+            references=references,
         ),
         provenance=Provenance(
             collector=collector_name,
@@ -272,7 +321,7 @@ def _to_item(claim: RawClaim, collector_name: str) -> EvidenceItem:
             captured_at=utcnow_iso(),
             source_revision=claim.source_revision,
             graph_hash=claim.graph_hash,
-            extra=dict(claim.extra or {}),
+            extra=extra,
         ),
         authority=claim.authority,
         freshness=claim.freshness,
@@ -340,3 +389,4 @@ def _normroot(path: str) -> str:
     import os
 
     return os.path.abspath(path).replace("\\", "/")
+

@@ -168,6 +168,14 @@ def _assemble(
             roots = ", ".join(neg.searched_roots) or "."
             parts.append(f"- no references to {neg.query} under {roots}")
         parts.append("")
+    notices = [r for r in packet.collectors_run if r.name == "scope@secondary" and r.status == "skipped"]
+    if notices:
+        parts.append("## Scope")
+        for run in notices:
+            decision = run.diagnostic.get("decision", "skipped")
+            reason = run.diagnostic.get("reason") or decision
+            parts.append(f"- secondary scope not collected ({decision}): {reason}")
+        parts.append("")
 
     if reserve_omitted:
         # worst-case width: every evidence item could be the omitted count

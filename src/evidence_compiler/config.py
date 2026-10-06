@@ -125,6 +125,14 @@ class Config:
         return frozenset(str(v).strip().lower() for v in raw if str(v).strip())
 
     @property
+    def allowed_roots(self) -> tuple[str, ...]:
+        """Owner-maintained roots a prompt may name as a secondary scope."""
+        raw = (self.data.get("scoping", {}) or {}).get("allowed_roots", []) or []
+        if not isinstance(raw, (list, tuple)):
+            return ()
+        return tuple(str(v).strip() for v in raw if str(v).strip())
+
+    @property
     def markup_tags(self) -> tuple[str, ...]:
         """Harness tag names whose tag tokens are stripped before extraction."""
         raw = (self.data.get("scoping", {}) or {}).get("markup_tags", DEFAULT_CONFIG["scoping"]["markup_tags"])

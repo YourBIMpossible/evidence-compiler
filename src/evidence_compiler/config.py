@@ -45,6 +45,19 @@ DEFAULT_CONFIG: dict[str, Any] = {
         # Case-insensitive symbol values a repo never wants searched (its
         # own name is rejected automatically; add tool names, product words).
         "ignore_symbols": [],
+        # Harness markup tag names. Only the tag tokens (``<name ...>``,
+        # ``</name>``, ``<name/>``) are removed before symbol extraction; the
+        # enclosed text and a bare identifier spelled the same are kept.
+        "markup_tags": [
+            "pasted_content",
+            "system-reminder",
+            "command-name",
+            "command-message",
+            "command-args",
+            "local-command-stdout",
+            "task-notification",
+            "ci-monitor-event",
+        ],
     },
     "review": {
         # `evidence review status` warns when either threshold is crossed
@@ -110,6 +123,14 @@ class Config:
         if not isinstance(raw, (list, tuple)):
             return frozenset()
         return frozenset(str(v).strip().lower() for v in raw if str(v).strip())
+
+    @property
+    def markup_tags(self) -> tuple[str, ...]:
+        """Harness tag names whose tag tokens are stripped before extraction."""
+        raw = (self.data.get("scoping", {}) or {}).get("markup_tags", DEFAULT_CONFIG["scoping"]["markup_tags"])
+        if not isinstance(raw, (list, tuple)):
+            return tuple(DEFAULT_CONFIG["scoping"]["markup_tags"])
+        return tuple(sorted({str(v).strip() for v in raw if str(v).strip()}))
 
     def review_threshold(self, key: str) -> int:
         section = self.data.get("review", {}) or {}

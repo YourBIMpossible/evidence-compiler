@@ -75,6 +75,7 @@ def compile_packet(
         active_file,
         repository_root=repository_root,
         ignore_symbols=cfg.ignore_symbols,
+        markup_tags=cfg.markup_tags,
     )
     # Identity binding gets its own budget, independent of the git
     # *collector's* timeout: a 250 ms collector slice divided per call left

@@ -163,6 +163,22 @@ def normalize_prompt_text(prompt: str) -> str:
     return unicodedata.normalize("NFC", prompt or "")
 
 
+def strip_markup_tags(text: str, tags: Iterable[str]) -> str:
+    """Blank out the tag tokens of the named harness markup tags.
+
+    Only a token shaped like a tag is removed — ``<name>``, ``<name attr="v">``,
+    ``</name>`` or ``<name/>`` — and it is replaced by spaces of equal length
+    so offsets (sentence-initial detection) are unchanged. The enclosed text is
+    kept, and the same word outside angle brackets (``x = pasted_content``) is
+    untouched. Unclosed or nested tags lose only their own tag tokens.
+    """
+    names = [re.escape(t) for t in tags if t]
+    if not text or not names:
+        return text
+    pattern = re.compile(rf"</?(?:{'|'.join(names)})(?:\s[^<>]*)?/?>")
+    return pattern.sub(lambda m: " " * len(m.group(0)), text)
+
+
 def _is_compound(span: str) -> bool:
     """Every hyphen component starts with an uppercase letter."""
     return all(part[:1].isupper() for part in span.split("-"))
@@ -196,6 +212,7 @@ def extract_symbols(
     *,
     repository_name: str | None = None,
     ignore_symbols: Iterable[str] = (),
+    markup_tags: Iterable[str] = (),
 ) -> list[str]:
     """Selected candidate code symbols, best-ranked first (ties in prompt order).
 
@@ -204,7 +221,11 @@ def extract_symbols(
     return [
         d["value"]
         for d in extract_symbol_details(
-            prompt, active_file, repository_name=repository_name, ignore_symbols=ignore_symbols
+            prompt,
+            active_file,
+            repository_name=repository_name,
+            ignore_symbols=ignore_symbols,
+            markup_tags=markup_tags,
         )
         if d["selected"]
     ]
@@ -216,6 +237,7 @@ def extract_symbol_details(
     *,
     repository_name: str | None = None,
     ignore_symbols: Iterable[str] = (),
+    markup_tags: Iterable[str] = (),
 ) -> list[dict[str, Any]]:
     """Categorize, rank, and select symbol candidates from ``prompt``.
 
@@ -226,7 +248,7 @@ def extract_symbol_details(
     """
     if not prompt:
         return []
-    prompt = normalize_prompt_text(prompt)
+    prompt = strip_markup_tags(normalize_prompt_text(prompt), markup_tags)
 
     called = set(_CALL_RE.findall(prompt))
     backticked = set(re.findall(r"`([^`]+)`", prompt))
@@ -411,6 +433,7 @@ def build_task(
     *,
     repository_root: str | None = None,
     ignore_symbols: Iterable[str] = (),
+    markup_tags: Iterable[str] = (),
 ) -> Task:
     ph = prompt_hash(prompt)
     source_kind = classify_prompt_source(prompt)
@@ -427,7 +450,11 @@ def build_task(
         )
     repo_name = _basename(repository_root) if repository_root else None
     details = extract_symbol_details(
-        prompt, active_file, repository_name=repo_name, ignore_symbols=ignore_symbols
+        prompt,
+        active_file,
+        repository_name=repo_name,
+        ignore_symbols=ignore_symbols,
+        markup_tags=markup_tags,
     )
     return Task(
         raw_prompt_hash=ph,

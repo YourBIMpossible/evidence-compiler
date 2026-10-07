@@ -47,6 +47,19 @@ scoping:
   # repository's own folder name is rejected automatically. Add product or
   # tool names that recur in prompts but never identify code.
   ignore_symbols: []
+  # Harness markup tags removed (tag tokens only; enclosed text is kept)
+  # before symbol extraction. Omit to use the built-in list.
+  # markup_tags: [pasted_content, system-reminder, command-name, ...]
+  # Other repositories a prompt may name by absolute path as a secondary
+  # scope. Only paths under exactly one of these roots (after resolving
+  # junctions/symlinks) are collected; anything else reads nothing. Paths
+  # outside every listed root are recorded only in the packet diagnostic;
+  # an allowed root that cannot be collected (ambiguous, not a git work
+  # tree) is noted in the brief. While a secondary scope is collected, every
+  # collector's timeout -- primary scope included -- is halved so the total
+  # collection time stays fixed; large primary repos may then time out
+  # sooner. Empty = single-scope only.
+  allowed_roots: []
 
 review:
   # `evidence review status` warns that a review window is due once either

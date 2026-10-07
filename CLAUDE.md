@@ -55,6 +55,13 @@ persistence, Claude Code Desktop adapter (fail-open), minimal per-repo
 config, golden fixture repo + collector contract tests, `evidence replay
 <packet>` CLI.
 
+**Owner-authorized addition (2026-10-06):** explicitly prompt-named
+secondary repository scopes, collected only under an owner-maintained
+`scoping.allowed_roots` allow-list, with the cwd/session-root and
+link-escape safeguards preserved. Limits and source:
+`docs/decisions/2026-10-06__secondary-repository-scope.md`. Do not broaden
+it (no discovery, no implicit roots, no cross-repo ranking policy).
+
 **Out of scope — do not build, even if it seems easy or "while I'm in
 there":** verification hooks / hard Stop, change contracts, a resident
 graph daemon, GPU compression, LLM-based ranking, adaptive budgets (schema

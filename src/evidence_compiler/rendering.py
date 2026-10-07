@@ -168,7 +168,17 @@ def _assemble(
             roots = ", ".join(neg.searched_roots) or "."
             parts.append(f"- no references to {neg.query} under {roots}")
         parts.append("")
-    notices = [r for r in packet.collectors_run if r.name == "scope@secondary" and r.status == "skipped"]
+    # Only an allow-listed target that could not be collected (ambiguous,
+    # unavailable) is worth brief space; plain not_allowed stays a packet
+    # diagnostic, since prompts routinely contain slash commands and paths
+    # the owner never listed.
+    notices = [
+        r
+        for r in packet.collectors_run
+        if r.name == "scope@secondary"
+        and r.status == "skipped"
+        and r.diagnostic.get("decision") != "not_allowed"
+    ]
     if notices:
         parts.append("## Scope")
         for run in notices:

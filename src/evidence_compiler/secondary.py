@@ -14,6 +14,9 @@ checks is deliberate, so that a non-allowed target never causes a read:
 
 Anything ambiguous (nested allowed roots, two distinct roots named) or
 unavailable is reported as a decision with a reason and collects nothing.
+A plain ``not_allowed`` decision (no candidate matched the allow-list, which
+includes slash commands such as ``/next`` read as POSIX paths) is kept as a
+packet diagnostic only and never rendered into the brief.
 """
 
 from __future__ import annotations
@@ -153,5 +156,10 @@ def decide(
         return Decision(UNAVAILABLE, root=root, reason="allowed root is not a directory", named=tuple(names))
     if not exists(root + "/.git"):
         return Decision(UNAVAILABLE, root=root, reason="allowed root is not a git work tree", named=tuple(names))
+    # Comparison uses the case-folded form; report the on-disk spelling so
+    # rendered references keep the user's casing.
+    display = realpath(root).replace("\\", "/").rstrip("/")
+    if _lex(display) == root:
+        root = display
     reason = "" if not rejected else f"{len(rejected)} other named path(s) not under an allowed root"
     return Decision(ALLOWED, root=root, reason=reason, named=tuple(names))

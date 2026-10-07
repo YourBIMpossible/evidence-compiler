@@ -389,4 +389,3 @@ def _normroot(path: str) -> str:
     import os
 
     return os.path.abspath(path).replace("\\", "/")
-

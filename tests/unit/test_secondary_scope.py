@@ -201,14 +201,60 @@ def test_compile_two_scopes_provenance_and_split_budget(tmp_path) -> None:
     assert "(in " not in by_run["rec"].source_claim.statement
 
 
-def test_compile_not_allowed_reads_nothing_and_renders_notice(tmp_path) -> None:
+def _scope_run(res):
+    return next(r for r in res.packet.collectors_run if r.name == "scope@secondary")
+
+
+def test_compile_not_allowed_reads_nothing_and_stays_in_diagnostics(tmp_path) -> None:
     session, other = _repo(tmp_path / "session"), _repo(tmp_path / "other")
     rec = _Rec()
     res = compile_packet(f"fix widget like {other}/src/w.py", session, config=_cfg([session + "/nope"]),
                          collectors=[rec], persist=False)
     assert len(rec.calls) == 1 and rec.calls[0][1] == 400
-    assert "secondary scope not collected (not_allowed)" in res.brief
+    assert _scope_run(res).diagnostic["decision"] == secondary.NOT_ALLOWED
+    assert "## Scope" not in res.brief
     assert all("root" not in i.provenance.extra for i in res.packet.evidence)
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    ["/review-all the ranking code", "please run /next then fix Foo", "fix the 1/2 ratio in /etc-like text"],
+)
+def test_slash_commands_never_render_scope_notice(tmp_path, prompt) -> None:
+    session, other = _repo(tmp_path / "session"), _repo(tmp_path / "other")
+    rec = _Rec()
+    res = compile_packet(prompt, session, config=_cfg([other]), collectors=[rec], persist=False)
+    assert len(rec.calls) == 1 and rec.calls[0][1] == 400
+    assert _scope_run(res).diagnostic["decision"] == secondary.NOT_ALLOWED
+    assert "## Scope" not in res.brief
+
+
+def test_allowed_root_keeps_on_disk_casing(tmp_path) -> None:
+    session, other = _repo(tmp_path / "session"), _repo(tmp_path / "Other")
+    res = compile_packet(f"fix widget like {other.lower() if os.name == 'nt' else other}/src/w.py", session,
+                         config=_cfg([other]), collectors=[_Rec()], persist=False)
+    run = _scope_run(res)
+    assert run.status == "ok"
+    assert run.diagnostic["root"] == os.path.realpath(other).replace("\\", "/")
+    assert "## Scope" not in res.brief
+
+
+def test_allowed_but_uncollectable_renders_notice(tmp_path) -> None:
+    session = _repo(tmp_path / "session")
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    plain_root = str(plain).replace("\\", "/")
+    rec = _Rec()
+    res = compile_packet(f"fix widget like {plain_root}/w.py", session, config=_cfg([plain_root]),
+                         collectors=[rec], persist=False)
+    assert len(rec.calls) == 1
+    assert _scope_run(res).diagnostic["decision"] == secondary.UNAVAILABLE
+    assert "secondary scope not collected (unavailable): allowed root is not a git work tree" in res.brief
+
+    a, b = _repo(tmp_path / "a"), _repo(tmp_path / "b")
+    res = compile_packet(f"compare {a}/x.py with {b}/y.py", session, config=_cfg([a, b]),
+                         collectors=[_Rec()], persist=False)
+    assert "secondary scope not collected (ambiguous)" in res.brief
 
 
 def test_compile_without_allow_list_unchanged(tmp_path) -> None:

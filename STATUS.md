@@ -1,6 +1,8 @@
 # Evidence Compiler — Status
 
-**Last updated:** 2026-08-23
+**Last updated:** 2026-08-23. Historical snapshot: for current state, read
+`WORKLOG.md` (newest Done entry first). Where the two disagree, `WORKLOG.md`
+wins.
 **North Star:** locked and active — see [NORTHSTAR.md](NORTHSTAR.md). The stale `NORTHSTAR.draft.md` (superseded by the lock) has been deleted.
 
 ---
@@ -24,7 +26,9 @@ Repo is public: https://github.com/YourBIMpossible/evidence-compiler
 CI was green on Python 3.10/3.11/3.12 (rg installed in CI) at the time of
 this snapshot. **Correction 2026-10-10:** CI on published `0646e8d` is red
 (7 POSIX failures in `tests/unit/test_secondary_scope.py`, run 38102222104).
-The local repair is uncommitted; see `WORKLOG.md` (2026-10-10).
+**Superseded 2026-10-11:** the repair merged as `4df93f2` (PR #21), green on
+ubuntu 3.10/3.11/3.12 (run 38109704167), and is installed. See `WORKLOG.md`
+(2026-10-11).
 Local test evidence: `63 passed, 10 skipped` (rg absent) / `73 passed` (rg
 available).
 

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from evidence_compiler.cli import render_replay_report
+import pytest
+
+from evidence_compiler.cli import main, render_replay_report
 from evidence_compiler.packet import Correlation, EvidencePacket, Identity, Task
 
 
@@ -44,3 +46,19 @@ def test_replay_silent_when_cwd_not_supplied(tmp_path):
     repo.mkdir()
     report = render_replay_report(_packet(repo))
     assert not report.startswith("WARNING:")
+
+
+@pytest.mark.parametrize(
+    "content",
+    [None, "{not json", "[]", '{"schema_version": 1, "evidence": [{"id": 5}]}', '{"schema_version": 1, "task": 7}'],
+    ids=["directory", "malformed", "not-object", "bad-item", "bad-section"],
+)
+def test_replay_unreadable_packet_is_a_clean_error(tmp_path, capsys, content):
+    target = tmp_path / "p.json"
+    if content is None:
+        target.mkdir()
+    else:
+        target.write_text(content, encoding="utf-8")
+    assert main(["replay", str(target)]) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error:") and "Traceback" not in err

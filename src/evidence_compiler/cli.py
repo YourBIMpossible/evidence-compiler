@@ -143,6 +143,11 @@ def _cmd_replay(args: argparse.Namespace) -> int:
     except SchemaVersionError as exc:
         sys.stderr.write(f"error: {exc}\n")
         return 2
+    except (OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
+        # a directory, unreadable file, malformed JSON or missing required
+        # fields: a clean error exit, not a traceback
+        sys.stderr.write(f"error: not a readable EvidencePacket: {args.packet} ({type(exc).__name__})\n")
+        return 2
     sys.stdout.write(render_replay_report(packet, cwd=os.getcwd()))
     return 0
 

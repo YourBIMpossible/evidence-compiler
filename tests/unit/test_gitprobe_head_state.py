@@ -8,6 +8,7 @@ per-call floor, and reports *why* HEAD is missing.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 
@@ -165,3 +166,24 @@ def test_default_git_budget_covers_six_calls_with_floor():
     # six calls x 100 ms floor must fit the default budget, otherwise the
     # last call (git status) is starved on a cold Windows spawn.
     assert Config().collector_timeout_ms("git") >= 6 * gitprobe._MIN_CALL_MS
+
+
+@git_required
+def test_main_tree_subdirectory_is_not_a_linked_worktree(golden_repo):
+    # From a subdirectory git reports the common dir relative to cwd
+    # (``../.git``); it must not be mistaken for a linked worktree.
+    sub = os.path.join(golden_repo, "src")
+    assert os.path.isdir(sub)
+    assert gitprobe.probe(golden_repo).worktree_id is None
+    assert gitprobe.probe(sub).worktree_id is None
+
+
+@git_required
+def test_linked_worktree_id_from_subdirectory(golden_repo, tmp_path):
+    wt = str(tmp_path / "lane")
+    subprocess.run(["git", "-C", golden_repo, "worktree", "add", "--detach", wt], check=True, capture_output=True)
+    try:
+        assert gitprobe.probe(wt).worktree_id == "lane"
+        assert gitprobe.probe(os.path.join(wt, "src")).worktree_id == "lane"
+    finally:
+        subprocess.run(["git", "-C", golden_repo, "worktree", "remove", "--force", wt], capture_output=True)

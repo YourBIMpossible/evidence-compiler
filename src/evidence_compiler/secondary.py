@@ -21,7 +21,9 @@ packet diagnostic only and never rendered into the brief.
 
 from __future__ import annotations
 
+import ntpath
 import os
+import posixpath
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -38,6 +40,8 @@ _WIN = re.compile(r"""(?<![\w])[A-Za-z]:[\\/][^\s"'`<>|*?]*""")
 _POSIX = re.compile(r"""(?:(?<=^)|(?<=[\s("'`]))/[^\s"'`<>|*?]+""")
 _QUOTED = re.compile(r"""(["'`])((?:[A-Za-z]:[\\/]|/)[^"'`\r\n<>|*?]*)\1""")
 _TRAIL = ".,;:)]}!"
+_DRIVE = re.compile(r"^[A-Za-z]:(?:/|$)")
+_MSYS = re.compile(r"^/[A-Za-z]/")
 
 
 @dataclass(frozen=True)
@@ -82,13 +86,20 @@ def named_paths(prompt: str, markup_tags: Iterable[str] = ()) -> list[str]:
 
 
 def _lex(path: str) -> str:
-    """Lexical canonical form: forward slashes, ``..`` collapsed, case-folded
-    on Windows. Never touches the filesystem."""
+    """Lexical canonical form: forward slashes, ``..`` collapsed. Never touches
+    the filesystem.
+
+    Path semantics follow the path's form, not only the host: a drive-letter
+    path (``C:/x``) is a Windows path on every host, so it is normalized with
+    ``ntpath`` (case-folded, ``..`` clamped at the drive root). Other paths use
+    host semantics: case-folded on Windows, case-sensitive on POSIX.
+    """
     p = path.replace("\\", "/")
-    if os.name == "nt" and re.match(r"^/[A-Za-z]/", p):
+    if os.name == "nt" and _MSYS.match(p):
         p = f"{p[1]}:/{p[3:]}"  # MSYS form /f/x -> f:/x
-    p = os.path.normpath(p).replace("\\", "/")
-    return os.path.normcase(p).replace("\\", "/").rstrip("/") or "/"
+    flavour = ntpath if os.name == "nt" or _DRIVE.match(p) else posixpath
+    p = flavour.normcase(flavour.normpath(p)).replace("\\", "/")
+    return p.rstrip("/") or "/"
 
 
 def _under(path: str, root: str) -> bool:

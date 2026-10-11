@@ -5,7 +5,31 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Done
 
-- 2026-10-10 — **Review + repair pass on `0646e8d` (local, uncommitted).**
+- 2026-10-11 — **Repair delivered: PR #21 merged as `4df93f2`, installed.**
+  - Commit `3749356` (the 2026-10-10 repair below plus its docs). PR
+    https://github.com/YourBIMpossible/evidence-compiler/pull/21.
+  - CI run 38109704167 on head `3749356`: ubuntu 3.10, 3.11 and 3.12 each
+    `297 passed`, no skips; no workflow change. This is the first real POSIX
+    run of fix A.
+  - Merged 2026-10-11T03:52:47Z as merge commit
+    `4df93f2ab255a9470f51c5580f52330e17ac7e7b`. Its tree equals the tested
+    head's tree.
+  - Installed `@4df93f2ab255a9470f51c5580f52330e17ac7e7b` into
+    `pythoncore-3.14-64`, 03:53:21.741Z–03:53:29.262Z (20:53 local).
+    `direct_url.json` `commit_id` verified in a fresh `-I` process.
+    Hooks, configs and `allowed_roots` unchanged.
+  - Last pre-install BIMpossible packet: `ep_9f1f7b534ec24da6` (03:28:48Z).
+    Packets in the install window: 0.
+  - **Installed; natural-traffic acceptance pending:** 0 post-install
+    packets at closeout. Comparison sample for the next check: the 9
+    post-`0646e8d` human packets (p50 869, p90 1134, max 1258 ms) and the 40
+    human packets before them (p50 798, p90 1031 ms).
+  - W3: all 9 live label packets, replacement `ep_c0352caf728f4e5d` and
+    runner-up `ep_debf1e9efccc4d20` are in `F:\Evidence-Archive\EC-LIVE`,
+    byte-identical by sha256. `ep_6f3f9cf3ea40435b` exists only in the
+    archive. Labels written: 0. W3 stays open.
+- 2026-10-10 — **Review + repair pass on `0646e8d`** (written while local and
+  uncommitted; superseded by the 2026-10-11 entry above).
   Report: `F:\Claude-Tools\reports\2026-10-10__evidence-compiler-review-repair.md`.
   Fixes, each with a regression test that fails without it:
   - (A) `secondary._lex`: drive-letter paths use `ntpath` semantics on every

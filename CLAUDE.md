@@ -19,12 +19,12 @@ Full specs (read these before writing code that touches their area):
 
 | Doc | Covers |
 |---|---|
-| `01-architecture.md` | Product boundary, components, critical path, repo layout |
-| `02-evidence-packet-v1.md` | EvidencePacket schema — the system of record |
-| `03-context-brief-v1.md` | ContextBrief schema — the agent-facing render |
-| `04-collector-interface-v1.md` | Collector plugin boundary + contract tests |
-| `05-graphify-evaluation.md` | Graphify's role, evaluation tiers, guardrails |
-| `06-roadmap.md` | Phased delivery, v0.1 → v1.0, explicit non-goals |
+| `docs/architecture/architecture.md` | Product boundary, components, critical path, repo layout |
+| `docs/specifications/evidence-packet-v1.md` | EvidencePacket schema — the system of record |
+| `docs/specifications/context-brief-v1.md` | ContextBrief schema — the agent-facing render |
+| `docs/specifications/collector-interface-v1.md` | Collector plugin boundary + contract tests |
+| `docs/graphify-evaluation.md` | Graphify's role, evaluation tiers, guardrails |
+| `docs/roadmap.md` | Evidence-gated track: shipped, active, queued, frozen; operates under `NORTHSTAR.md` |
 | `BUILD_BRIEF.md` | Ordered task list + acceptance criteria for this build |
 
 ## Non-negotiable invariants
@@ -91,8 +91,10 @@ project, not technical difficulty.
   quick hack would violate an invariant above, do not take it — say so
   and implement the correct version.
 - Every collector implementation must pass the contract tests in
-  `04-collector-interface-v1.md` §7 before being considered done.
+  `docs/specifications/collector-interface-v1.md` §7 before being
+  considered done.
 - No unexplained TODOs. If something is deliberately deferred, say why
-  and which roadmap version (`06-roadmap.md`) it belongs to.
+  and where it is recorded (`docs/roadmap.md` queued/frozen, or
+  `WORKLOG.md` *Roadmap / queued*).
 - When in doubt about whether something belongs in core vs. per-repo
   config, default to per-repo config.

@@ -5,6 +5,13 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Done
 
+- 2026-10-11 — **`docs/roadmap.md` replaced with the evidence-gated track.**
+  - The obsolete 2026-08-21 version plan is kept as superseded.
+  - README now links prominently to the roadmap.
+  - `CLAUDE.md` spec pointers now point to the real `docs/` paths.
+  - `STATUS.md` now carries a superseded-plan note.
+  - Documentation only: `NORTHSTAR.md` untouched, no runtime change.
+
 - 2026-10-11 — **N6: cross-session traffic classified as harness.**
   - Peer-session messages (the whole prompt is one
     `<cross-session-message …>` block) and cross-session idle notices (the
@@ -158,6 +165,28 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
     the collector defect below.
 
 ## Roadmap / queued
+
+- 2026-10-11 — **Queued current-scope findings, now with identifiers.**
+  Summarised in `docs/roadmap.md`. These are maintenance items, not
+  evidence that a phase has been earned, and each needs its own grant.
+  - N1–N5 are the 2026-10-10 minor review findings below:
+    - N1: `filenames` cache staleness
+    - N2: dirty-path base
+    - N3: `.tmp` leftover
+    - N4: vocabulary validation
+    - N5: `load_labels` robustness
+  - Status of N1–N5: queued, ungranted, unchanged triggers.
+  - **N7 (proposed identifier; ungranted; not implemented):**
+    - The finding: `<agent-message from=…>` envelopes are classified
+      `human` and injected. N6's anchored envelopes do not cover this
+      shape.
+    - Observed in `2c0d975d`, `304249ed` and `1a0b2783`.
+    - Until it is fixed, exclude these from genuine cohorts.
+  - N6 shipped (PR #23, installed `92a9b00`). Natural-traffic acceptance
+    is partial; the last accepted runtime is `4df93f2`.
+  - Phase 1B shipped (PR #3), but its five-prompt closure gate has no
+    recorded outcome. This is an open historical evidence gap. The
+    untracked `PHASE-1B-EVIDENCE-QUALITY.draft.md` is left in place.
 
 - 2026-10-10 — **Minor review findings, recorded and not activated:**
   - `filenames` cache keyed by (root, HEAD) goes stale on staging changes.

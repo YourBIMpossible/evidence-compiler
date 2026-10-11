@@ -2,7 +2,8 @@
 
 **Last updated:** 2026-08-23. Historical snapshot: for current state, read
 `WORKLOG.md` (newest Done entry first). Where the two disagree, `WORKLOG.md`
-wins.
+wins. For the project track, read [docs/roadmap.md](docs/roadmap.md). The
+"v0.2 roadmap" referenced below is the superseded 2026-08-21 version plan.
 **North Star:** locked and active — see [NORTHSTAR.md](NORTHSTAR.md). The stale `NORTHSTAR.draft.md` (superseded by the lock) has been deleted.
 
 ---

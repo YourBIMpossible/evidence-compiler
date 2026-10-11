@@ -5,6 +5,28 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Done
 
+- 2026-10-11 — **N6: cross-session traffic classified as harness.**
+  - Peer-session messages (the whole prompt is one
+    `<cross-session-message …>` block) and cross-session idle notices (the
+    prompt begins `[Cross-session idle notice]`) are now
+    `source_kind: harness`: zero symbols, no search. Matching uses anchored
+    whole-prompt envelopes, so prose that quotes either marker, a block with
+    human text around it, and pasted copies inside `<pasted_content>` stay
+    `human`.
+  - `cross-session-message` was added to the default `scoping.markup_tags`,
+    so wrapper tokens (`uds`, `pipe`, `from-session` ids) are no longer
+    candidates in human prompts. Paths inside a peer block are no longer
+    secondary `named_paths`.
+  - Tests: `tests/unit/test_cross_session_traffic.py` (8).
+  - Replay against the live BIMpossible store compared base `37a3726` with
+    N6 code. 239 of 250 prompts were recovered by transcript hash.
+    - Exactly 13 changed, all human → harness, and each is a real envelope
+      (10 peer messages and 3 idle notices, including `9b8e2967` and
+      `f2fbae05`).
+    - The other 226 kept the same `source_kind` and the same extracted
+      symbols, including genuine `9dd1dfe3`, `70fb08c4`, `631d6e94`,
+      `f58778e7` and `43ae1b50`.
+
 - 2026-10-11 — **Repair delivered: PR #21 merged as `4df93f2`, installed.**
   - Commit `3749356` (the 2026-10-10 repair below plus its docs). PR
     https://github.com/YourBIMpossible/evidence-compiler/pull/21.

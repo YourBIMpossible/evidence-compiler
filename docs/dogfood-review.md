@@ -112,13 +112,17 @@ git budget is now 600 ms for six git calls (a Windows git spawn costs ~40 ms).
 ## 4. Task provenance: `source_kind` and `symbol_details`
 
 Claude Code's `UserPromptSubmit` channel also carries text no person typed:
-background task notifications, system reminders, CI monitor events. The
-compiler classifies each prompt deterministically:
+background task notifications, system reminders, CI monitor events, peer
+session messages and cross-session idle notices. The compiler classifies each
+prompt deterministically:
 
 - `task.source_kind: harness` — the text contains a harness tag
   (`<task-notification`, `<system-reminder`, `<ci-monitor-event`,
-  `<local-command-stdout`, `<command-name>`) or a harness temp-file path.
-  No symbols are extracted, the packet is still written (so the traffic is
+  `<local-command-stdout`, `<command-name>`) or a harness temp-file path, or
+  the whole prompt is one cross-session envelope: a single
+  `<cross-session-message …>…</cross-session-message>` block, or text that
+  begins `[Cross-session idle notice]`. A person quoting either marker in
+  prose, or pasting one inside `<pasted_content>`, stays `human`. No symbols are extracted, the packet is still written (so the traffic is
   visible), and review classifies it as `harness` traffic.
 - `task.source_kind: human` — everything else.
 

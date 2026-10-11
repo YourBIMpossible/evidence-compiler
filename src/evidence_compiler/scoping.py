@@ -107,7 +107,8 @@ _PATH_EXTENSIONS = frozenset(
 
 # Text the hook receives on the prompt channel that no person typed: Claude
 # Code task notifications, system reminders, CI monitor events, and the
-# harness temp-file paths they carry.
+# harness temp-file paths they carry. Cross-session traffic is matched by
+# envelope instead (``_HARNESS_ENVELOPES``).
 _HARNESS_MARKERS = (
     "<task-notification",
     "<system-reminder",
@@ -117,6 +118,20 @@ _HARNESS_MARKERS = (
 )
 _HARNESS_PATH_RE = re.compile(
     r"AppData[\\/]Local[\\/]Temp[\\/]claude[\\/]|[\\/]tmp[\\/]claude[\\/]", re.IGNORECASE
+)
+# Cross-session traffic is recognised only by its whole-prompt envelope: the
+# harness delivers a peer session's message as exactly one
+# ``<cross-session-message ...>`` block, and an idle notice as a line that
+# begins ``[Cross-session idle notice]``. A person quoting either in prose,
+# or pasting one inside ``<pasted_content>``, does not match.
+_HARNESS_ENVELOPES = (
+    re.compile(
+        r"\A\s*<cross-session-message(?:\s[^<>]*)?>"
+        r"(?:(?!</?cross-session-message[\s>]).)*"
+        r"</cross-session-message>\s*\Z",
+        re.S,
+    ),
+    re.compile(r"\A\s*\[Cross-session idle notice\]"),
 )
 
 SOURCE_KINDS = ("human", "harness")
@@ -145,6 +160,8 @@ def classify_prompt_source(prompt: str) -> str:
     if any(marker in text for marker in _HARNESS_MARKERS):
         return "harness"
     if _HARNESS_PATH_RE.search(text):
+        return "harness"
+    if any(envelope.match(text) for envelope in _HARNESS_ENVELOPES):
         return "harness"
     return "human"
 

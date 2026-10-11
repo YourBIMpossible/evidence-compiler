@@ -1,6 +1,6 @@
 # Evidence Compiler — Roadmap
 
-**Last updated:** 2026-10-11 · **Installed runtime:** 0.3.1 at
+**Last updated:** 2026-10-11 (W3 ratification status) · **Installed runtime:** 0.3.1 at
 `92a9b0088291ae14bc85a296d4b8cc22ebfc2527`. Later documentation-only commits on
 `master` change the published head, not the installed runtime.
 
@@ -81,12 +81,16 @@ Do not generate probe traffic, and do not poll unchanged packets.
 
 **In parallel (owner): Window 3 usefulness review.**
 
-- 12 agent-proposed judgments await owner ratification: ten original W3
-  packets, one proposed replacement, and one runner-up.
-- Persisted labels remain zero.
-- These are not ratified human usefulness evidence, and W3 is not closed.
-- Ratifying them does not authorize a phase. The proposed review reports
-  recurring noise, not demonstrated high-cost harm.
+- 12 agent-proposed judgments (ten original W3 packets, one proposed
+  replacement, and one runner-up) were **owner-ratified on 2026-10-11**: all
+  12 `neutral`, with their recorded reasons and the review's sampling and
+  attribution limits intact. This means no observable contribution or harm
+  in the inspected evidence, not proof of zero internal effect.
+- Persisted labels remain zero, window membership is unchanged, and W3 is
+  not closed. Persisting labels and closing W3 each need a separate owner
+  instruction.
+- Ratification does not authorize a phase. The review reports recurring
+  noise, not demonstrated high-cost harm.
 
 ## Queued — current-scope maintenance, not a phase
 

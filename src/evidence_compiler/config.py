@@ -57,6 +57,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "local-command-stdout",
             "task-notification",
             "ci-monitor-event",
+            "cross-session-message",
         ],
     },
     "review": {

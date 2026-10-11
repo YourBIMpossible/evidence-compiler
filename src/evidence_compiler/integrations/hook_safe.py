@@ -280,6 +280,11 @@ def _run() -> None:
         _diag(root, "stdout_write_error")
         return
 
+    persist_error = getattr(result, "persist_error", None)
+    if persist_error:
+        # injection already happened; the packet just was not kept (class name only)
+        _diag(root, "persist_failed", str(persist_error))
+
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     tokens = getattr(getattr(result.packet, "budget", None), "injected_tokens", "?")
     packet_name = os.path.basename(str(getattr(result, "storage_path", "") or ""))

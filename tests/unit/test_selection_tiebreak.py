@@ -93,3 +93,26 @@ def test_scores_unchanged_by_tiebreak():
     p = _packet(copy.deepcopy(items), ["alpha"], 10_000)
     rank(p)
     assert [e.compiler_assessment.final_score for e in p.evidence] == [4.5, 4.5]
+
+
+def test_renderer_drop_honours_selection_tiebreak():
+    # Ranking prefers the item matching more prompt terms on an exact tie; when
+    # the renderer's precise accounting must drop one, it must drop the other.
+    from evidence_compiler.rendering import render_brief
+
+    syms = ["alpha", "beta"]
+    items = [_content("aaa/a.py", "alpha", "alpha only"), _content("zzz/b.py", "alpha", "alpha beta")]
+    p = _packet(copy.deepcopy(items), syms, 10_000)
+    rank(p)
+    assert len(_selected(p)) == 2
+    full = render_brief(p).tokens
+    one = next(mt for mt in range(1, full) if len(_rendered(p, mt)) == 1)
+    assert _rendered(p, one) == ["zzz/b.py:1"]
+
+
+def _rendered(p, max_tokens):
+    from evidence_compiler.rendering import render_brief
+
+    p.budget.max_tokens = max_tokens
+    ids = render_brief(p).rendered_ids
+    return [e.source_claim.references[0] for e in p.evidence if e.id in ids]

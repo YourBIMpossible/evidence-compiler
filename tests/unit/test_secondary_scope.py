@@ -59,6 +59,40 @@ def _fs(**kw) -> _Recorder:
     return _Recorder(dirs={_lc(A), _lc(B)}, gits={_lc(A) + "/.git", _lc(B) + "/.git"}, **kw)
 
 
+@pytest.fixture(params=["nt", "posix"])
+def host(request, monkeypatch) -> str:
+    """Run a lexical case under both host flavours. Drive-letter paths must
+    behave as Windows paths whichever host evaluates them (CI is POSIX)."""
+    monkeypatch.setattr(secondary.os, "name", request.param)
+    return request.param
+
+
+# -- lexical semantics -----------------------------------------------------
+
+
+def test_drive_paths_fold_case_on_every_host(host) -> None:
+    assert secondary._lex("C:\\Repos\\Other\\") == secondary._lex("c:/repos/other") == "c:/repos/other"
+    assert secondary._lex("C:/repos/other/../../../secret") == "c:/secret"  # clamped at the drive root
+
+
+def test_posix_paths_case_sensitive_on_posix_host(monkeypatch) -> None:
+    monkeypatch.setattr(secondary.os, "name", "posix")
+    assert secondary._lex("/srv/Repos/Other") == "/srv/Repos/Other"
+    assert secondary._lex("/f/x") == "/f/x"  # no MSYS drive rewrite off Windows
+    fs = _Recorder(dirs={"/srv/repos/other"}, gits={"/srv/repos/other/.git"})
+    d = decide("open /srv/Repos/Other/a.py", "/home/u/session", ["/srv/repos/other"], **fs.kw())
+    assert d.status == secondary.NOT_ALLOWED
+    assert not any("Repos" in p for p in fs.seen)
+    assert decide("open /srv/repos/other/a.py", "/home/u/session", ["/srv/repos/other"],
+                  **fs.kw()).status == secondary.ALLOWED
+
+
+def test_posix_paths_fold_case_on_windows_host(monkeypatch) -> None:
+    monkeypatch.setattr(secondary.os, "name", "nt")
+    assert secondary._lex("/F/Evidence") == "f:/evidence"  # MSYS form
+    assert secondary._lex("/srv/Repos") == "/srv/repos"
+
+
 # -- path detection ---------------------------------------------------------
 
 
@@ -78,59 +112,59 @@ def test_paths_inside_markup_blocks_ignored() -> None:
 # -- decisions --------------------------------------------------------------
 
 
-def test_no_allow_list_never_allows() -> None:
+def test_no_allow_list_never_allows(host) -> None:
     fs = _fs()
     d = decide("look at C:/repos/other/a.py", S, [], **fs.kw())
     assert d.status == secondary.NOT_ALLOWED
     assert not any("repos/other" in p for p in fs.seen)
 
 
-def test_non_allowed_target_triggers_no_filesystem_access() -> None:
+def test_non_allowed_target_triggers_no_filesystem_access(host) -> None:
     fs = _fs()
     d = decide("look at C:/secret/stuff/a.py", S, [A], **fs.kw())
     assert d.status == secondary.NOT_ALLOWED
     assert not any("secret" in p for p in fs.seen)
 
 
-def test_traversal_rejected_lexically() -> None:
+def test_traversal_rejected_lexically(host) -> None:
     fs = _fs()
     d = decide("open C:/repos/other/../../secret/a.py", S, [A], **fs.kw())
     assert d.status == secondary.NOT_ALLOWED
     assert not any("secret" in p for p in fs.seen)
 
 
-def test_link_escape_rejected() -> None:
+def test_link_escape_rejected(host) -> None:
     fs = _fs(links={_lc(A) + "/vendor": "c:/secret"})
     d = decide("open C:/repos/other/vendor/a.py", S, [A], **fs.kw())
     assert d.status == secondary.NOT_ALLOWED
     assert not any(p.endswith("/.git") for p in fs.seen)
 
 
-def test_allowed_root_resolved_canonically() -> None:
+def test_allowed_root_resolved_canonically(host) -> None:
     # allow-list entry is itself a junction to the real repo
     fs = _fs(links={"c:/alias": _lc(A)})
     d = decide("open C:\\repos\\other\\src\\a.py", S, ["c:/alias"], **fs.kw())
     assert d.status == secondary.ALLOWED and d.root == _lc(A)
 
 
-def test_allowed_and_case_and_slash_forms() -> None:
+def test_allowed_and_case_and_slash_forms(host) -> None:
     for prompt in ("open C:\\Repos\\Other\\a.py", "open c:/repos/other/a.py", 'open "C:/repos/other/x y.py"'):
         assert decide(prompt, S, [A], **_fs().kw()).status == secondary.ALLOWED, prompt
 
 
-def test_ambiguous_nested_roots() -> None:
+def test_ambiguous_nested_roots(host) -> None:
     d = decide("open C:/repos/other/sub/a.py", S, [A, A + "/sub"], **_fs().kw())
     assert d.status == secondary.AMBIGUOUS and d.root is None
 
 
-def test_ambiguous_two_roots_named() -> None:
+def test_ambiguous_two_roots_named(host) -> None:
     fs = _fs()
     d = decide("compare C:/repos/other/a.py with C:/repos/third/b.py", S, [A, B], **fs.kw())
     assert d.status == secondary.AMBIGUOUS
     assert not any(p.endswith("/.git") for p in fs.seen)
 
 
-def test_unavailable_not_dir_or_not_git() -> None:
+def test_unavailable_not_dir_or_not_git(host) -> None:
     fs = _Recorder(dirs=set(), gits=set())
     assert decide("open C:/repos/other/a.py", S, [A], **fs.kw()).status == secondary.UNAVAILABLE
     fs = _Recorder(dirs={_lc(A)}, gits=set())
@@ -138,11 +172,11 @@ def test_unavailable_not_dir_or_not_git() -> None:
     assert d.status == secondary.UNAVAILABLE and "git" in d.reason
 
 
-def test_session_root_is_same() -> None:
+def test_session_root_is_same(host) -> None:
     assert decide("open C:/work/session/a.py", S, [A, S], **_fs().kw()).status == secondary.SAME
 
 
-def test_session_nested_in_allowed_root_is_ambiguous() -> None:
+def test_session_nested_in_allowed_root_is_ambiguous(host) -> None:
     d = decide("open C:/repos/other/a.py", A + "/wt/x", [A], **_fs().kw())
     assert d.status == secondary.AMBIGUOUS
 

@@ -21,7 +21,10 @@ alongside a new `docs/quickstart.md` (public-repo walkthrough, linked from
 the README) and deletion of the superseded `NORTHSTAR.draft.md`.
 
 Repo is public: https://github.com/YourBIMpossible/evidence-compiler
-CI is green on Python 3.10/3.11/3.12 (rg installed in CI).
+CI was green on Python 3.10/3.11/3.12 (rg installed in CI) at the time of
+this snapshot. **Correction 2026-10-10:** CI on published `0646e8d` is red
+(7 POSIX failures in `tests/unit/test_secondary_scope.py`, run 38102222104).
+The local repair is uncommitted; see `WORKLOG.md` (2026-10-10).
 Local test evidence: `63 passed, 10 skipped` (rg absent) / `73 passed` (rg
 available).
 

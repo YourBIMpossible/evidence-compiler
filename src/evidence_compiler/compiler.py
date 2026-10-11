@@ -46,6 +46,9 @@ class CompileResult:
     brief: str
     storage_path: str | None
     render: RenderResult
+    # exception class name when persistence failed (never its message, which
+    # can embed paths or prompt-derived text); ``None`` when saved or skipped
+    persist_error: str | None = None
 
 
 def compile_packet(
@@ -139,8 +142,12 @@ def compile_packet(
     # -- collect (parallel, deadline-bounded, failure-isolated) -------------
     # A second scope shares the same end-to-end deadline and splits every
     # per-collector timeout, so total collection time stays fixed.
+    # The deadline is end-to-end from compile start: collection gets only what
+    # scoping and the identity probe left, so the adapter's watchdog
+    # (deadline + grace) is never outrun by a slow probe.
     t0 = time.perf_counter()
-    results, runs = _run_collectors(jobs, cfg, deadline, split=2 if second_root else 1)
+    remaining_ms = max(int(deadline - (t0 - start) * 1000.0), 1)
+    results, runs = _run_collectors(jobs, cfg, remaining_ms, split=2 if second_root else 1)
     if decision.status not in (secondary.NONE, secondary.SAME):
         runs.append(
             CollectorRun(
@@ -198,19 +205,25 @@ def compile_packet(
     packet.budget.injected_tokens = render.tokens
     stages["render_ms"] = _ms(t0)
 
+    # Recorded inside the packet, so it covers compile start through render and
+    # necessarily excludes persistence; hook.log's `injected ... Nms` is the
+    # whole-hook wall time.
     packet.timing = Timing(total_ms=_ms(start), stages=stages)
 
     # -- persist (best effort; never fatal) ---------------------------------
     storage_path: str | None = None
+    persist_error: str | None = None
     if persist:
         try:
             from .storage import save_packet
 
             storage_path = save_packet(packet, cfg.storage_dir(repository_root))
-        except Exception:  # noqa: BLE001 - persistence must not break the path
-            storage_path = None
+        except Exception as exc:  # noqa: BLE001 - persistence must not break the path
+            persist_error = type(exc).__name__
 
-    return CompileResult(packet=packet, brief=render.text, storage_path=storage_path, render=render)
+    return CompileResult(
+        packet=packet, brief=render.text, storage_path=storage_path, render=render, persist_error=persist_error
+    )
 
 
 # --------------------------------------------------------------------------
@@ -257,7 +270,8 @@ def _run_collectors(
     launch = time.perf_counter()
     for run_name, collector, ctx in enabled:
         timeout = max(cfg.collector_timeout_ms(collector.name) // max(split, 1), 1)
-        job_ctx = replace(ctx, timeout_ms=timeout)
+        # every scope gets the collector's own config slice (interface spec §2)
+        job_ctx = replace(ctx, timeout_ms=timeout, config=cfg.collector_slice(collector.name))
         t = threading.Thread(target=worker, args=(run_name, collector, job_ctx), daemon=True)
         threads[run_name] = t
         t.start()

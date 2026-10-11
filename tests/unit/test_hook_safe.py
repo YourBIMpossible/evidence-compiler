@@ -340,3 +340,22 @@ def test_retention_failure_does_not_suppress_injection(monkeypatch, capsysbinary
     out = capsysbinary.readouterr().out
     assert json.loads(out.decode("utf-8"))["hookSpecificOutput"]["additionalContext"]
     assert any("hook-safe:retention_error OSError" in line for line in _log_lines(golden_repo))
+
+
+def test_persist_failure_is_logged_and_still_injects(monkeypatch, capsysbinary, golden_repo):
+    import evidence_compiler.storage as storage_mod
+
+    def broken_save(packet, storage_dir):
+        raise PermissionError(f"secret prompt path {storage_dir}")
+
+    monkeypatch.setattr(storage_mod, "save_packet", broken_save)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", golden_repo)
+    _feed_payload(monkeypatch, golden_repo, "where is alpha defined")
+    assert hook_safe.main() == 0
+    out = capsysbinary.readouterr().out
+    assert json.loads(out.decode("utf-8"))["hookSpecificOutput"]["additionalContext"]
+    lines = _log_lines(golden_repo)
+    failed = [line for line in lines if "hook-safe:persist_failed" in line]
+    assert len(failed) == 1 and failed[0].endswith("hook-safe:persist_failed PermissionError")
+    assert any("hook-safe:injected" in line and line.endswith("packet=") for line in lines)
+    assert not any("secret" in line for line in lines)

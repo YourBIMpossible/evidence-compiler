@@ -159,8 +159,10 @@ def _detect_worktree_id(cwd: str, budget: _Budget) -> str | None:
     common_dir = _run(["rev-parse", "--git-common-dir"], cwd, budget.next_ms())
     if not (git_dir and common_dir and git_dir.returncode == 0 and common_dir.returncode == 0):
         return None
-    gd = os.path.normpath(git_dir.stdout.strip())
-    cd = os.path.normpath(common_dir.stdout.strip())
+    # Either may be relative to cwd (from a subdirectory git reports the common
+    # dir as e.g. ``../.git``), so resolve both before comparing.
+    gd = os.path.normcase(os.path.normpath(os.path.join(cwd, git_dir.stdout.strip())))
+    cd = os.path.normcase(os.path.normpath(os.path.join(cwd, common_dir.stdout.strip())))
     if gd == cd:
         return None  # main work tree
     # linked worktree git-dir looks like <common>/worktrees/<name>

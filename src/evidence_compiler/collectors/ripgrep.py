@@ -101,7 +101,9 @@ class RipgrepCollector(Collector):
             )
 
         root = context.repository_root
-        extra_args = list(context.config.get("extra_args", []) or [])
+        raw_args = context.config.get("extra_args") or []
+        # a malformed value (e.g. a bare string) is ignored, never split into characters
+        extra_args = [a for a in raw_args if isinstance(a, str)] if isinstance(raw_args, list) else []
 
         items: list[RawClaim] = []
         negatives: list[RawNegative] = []

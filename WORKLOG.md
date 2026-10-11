@@ -5,6 +5,31 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Done
 
+- 2026-10-10 — **Review + repair pass on `0646e8d` (local, uncommitted).**
+  Report: `F:\Claude-Tools\reports\2026-10-10__evidence-compiler-review-repair.md`.
+  Fixes, each with a regression test that fails without it:
+  - (A) `secondary._lex`: drive-letter paths use `ntpath` semantics on every
+    host; POSIX paths stay case-sensitive. Fixes the 7 ubuntu CI failures
+    (run 38102222104), reproduced under a POSIX simulation.
+  - (B) Every collector job (primary and secondary) receives its own config
+    slice, so ripgrep `extra_args` takes effect. A malformed value is ignored.
+  - (C) Collection gets only the deadline left after scoping and the identity
+    probe. Budgets and the secondary split are unchanged.
+  - (D) The renderer admits items in ranking's `selection_key` order, so a
+    render drop no longer defeats the equal-score tie-break.
+  - (E) A failed packet save is logged as `hook-safe:persist_failed <ExcClass>`.
+    Injection is unaffected.
+  - `gitprobe` worktree id: a main-tree subdirectory is no longer read as a
+    linked worktree `.git`.
+  - `evidence replay` on an unreadable or malformed file exits 2 with a clean
+    error.
+  Result: 297 passed, ruff clean (Windows). POSIX coverage is by simulation
+  only; CI has not run on these changes.
+  Natural-traffic acceptance of the installed `0646e8d` markup stripping is
+  met: 3/3 hash-verified `<pasted_content>` prompts with no tag symbol and no
+  lost identifier. No post-deploy errors or secondary jobs. p90 1056 ms vs
+  1064 ms pre-deploy.
+
 - 2026-09-06 — **Window 3 follow-through pass — final report**
   ([docs/dogfood/2026-09-06__w3-followthrough.md](docs/dogfood/2026-09-06__w3-followthrough.md)).
   PR #14 merged as `358ea45`, v0.3.1 live-installed. Review telemetry: capped
@@ -88,6 +113,17 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Roadmap / queued
 
+- 2026-10-10 — **Minor review findings, recorded and not activated:**
+  - `filenames` cache keyed by (root, HEAD) goes stale on staging changes.
+  - Dirty paths are relative to the git toplevel when `repository_root` sits
+    below it.
+  - `save_packet` leaves a `.tmp` on write failure; retention never removes it.
+  - Packet vocabulary constants are not validated on load.
+  - `review.load_labels` raises on an unreadable or undecodable labels file.
+  - Human prompts that quote harness markers or `/tmp/claude/` paths are
+    classified as harness and get zero symbols (by design; revisit only with
+    evidence).
+
 - 2026-09-06 — **Frozen: ripgrep total match cap (`_MAX_TOTAL_MATCHES = 100`,
   25/symbol) and its collection-before-ranking order.** Reopen only after at
   least three distinct, reviewed human-task packets show that cap truncation
@@ -144,6 +180,21 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
   unused) — dropped the unused import on lane `claude/ruff-f401-cleanup`.
 
 ## Needs your call
+
+- 2026-10-10 — **Hyphenated lowercase names are dropped by symbol extraction,
+  even when backticked.** For example, `evidence-packet-v1.md` yields no
+  symbol (`scoping.py` symbol-shape rule). Fixing it changes extraction and
+  ranking inputs, which is an evidence-quality change, so it was not done
+  inline.
+- 2026-10-10 — **W3 label for archive-only `ep_6f3f9cf3ea40435b`.**
+  `evidence review label` only sees the live store, so no route exists without
+  writing to the store or adding a CLI feature.
+  - Proposed same-category replacement (pre-deploy runtime, pasted
+    process-control prompt, not truncated, no cited file touched):
+    `ep_c0352caf728f4e5d`. Runner-up: `ep_debf1e9efccc4d20`.
+  - Rotation risk: the remaining 9 set packets sit at live positions 10–170
+    of 250. `ep_dc47b3074c88463f` rotates out after about 10 more BIMpossible
+    packets, so label soon or refresh the archive.
 
 - (resolved 2026-09-06) **Window 2 disposition** — closed as reviewed
   (helped 0 / neutral 18 / hurt-noise 4 / insufficient 1, dominated by the rg

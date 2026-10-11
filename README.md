@@ -11,8 +11,11 @@ Desktop is the first integration adapter — not the core. Graphify is a planned
 optional structural collector (a Phase 1A stub today).
 
 > Status: **Phase 1A**. The critical path (prompt → adapter → compiler →
-> packet → brief → agent) is implemented, deterministic, and fail-open. See
-> [docs/roadmap.md](docs/roadmap.md) for what is deliberately deferred.
+> packet → brief → agent) is implemented, deterministic, and fail-open.
+>
+> **Roadmap:** [docs/roadmap.md](docs/roadmap.md). It covers what shipped,
+> the active milestone, queued and frozen items, and how a new phase is
+> earned. It operates under [NORTHSTAR.md](NORTHSTAR.md).
 
 ## Install
 
@@ -136,7 +139,7 @@ policy belongs here, never in core package code. See the file written by
 | [context-brief-v1](docs/specifications/context-brief-v1.md) | ContextBrief schema — the agent-facing render |
 | [collector-interface-v1](docs/specifications/collector-interface-v1.md) | Collector plugin boundary + contract tests |
 | [graphify-evaluation](docs/graphify-evaluation.md) | Graphify's role, evaluation tiers, guardrails |
-| [roadmap](docs/roadmap.md) | Phased delivery, v0.1 → v1.0, explicit non-goals |
+| [roadmap](docs/roadmap.md) | Evidence-gated track: shipped, active, queued, frozen, candidate directions |
 | [quickstart](docs/quickstart.md) | 5-minute walkthrough against a public repo |
 | [dogfood-review](docs/dogfood-review.md) | Outcome categories, privacy boundary, and the local `evidence review` workflow |
 

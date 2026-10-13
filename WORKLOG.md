@@ -22,8 +22,12 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
     carry the ratified reasons): `cc4c43b4 cb87cfc6 94b86fdd c0352caf
     6d4a0514 407f5acd debf1e9e`.
   - Not persistable by an existing route (rotated out of the live store,
-    archive-only): `89df7aa2 551c124f dc47b307 d5f070ee 6f3f9cf3`. See
-    *Needs your call* (archive-only label route).
+    archive-only): `89df7aa2 551c124f dc47b307 d5f070ee 6f3f9cf3`.
+- 2026-10-12 — **W3 closed (owner-granted).** The 5 archive-only judgments
+  are in `F:\BIMpossible\.evidence-compiler\logseview\w3-archive-judgments.jsonl`,
+  each bound to its verified archive sha256; archived packets untouched, no
+  restore. Receipt reconciles 7 CLI + 5 sidecar = 12 neutral, 0 helped.
+  `NORTHSTAR.md` Window 3 entry recorded as closed (owner-approved).
 
 - 2026-10-11 — **`docs/roadmap.md` replaced with the evidence-gated track.**
   - The obsolete 2026-08-21 version plan is kept as superseded.
@@ -281,7 +285,7 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
   symbol (`scoping.py` symbol-shape rule). Fixing it changes extraction and
   ranking inputs, which is an evidence-quality change, so it was not done
   inline.
-- 2026-10-10 — **W3 label for archive-only `ep_6f3f9cf3ea40435b`.**
+- (resolved 2026-10-12, sidecar) 2026-10-10 — **W3 label for archive-only `ep_6f3f9cf3ea40435b`.**
   `evidence review label` only sees the live store, so no route exists without
   writing to the store or adding a CLI feature.
   - Proposed same-category replacement (pre-deploy runtime, pasted

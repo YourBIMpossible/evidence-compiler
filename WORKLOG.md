@@ -5,6 +5,22 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Done
 
+- 2026-10-13 — **Local test failures after N7 diagnosed (test isolation).**
+  - Retained evidence: run A `3 failed, 311 passed` (names not retained);
+    run B `test_compound_prompt_brief_is_deterministic` at
+    `tests/unit/test_compound_symbols.py:240` (`assert len(briefs) == 1`);
+    run C `1 failed, 313 passed` (name not retained); run D 314 passed.
+  - Reproduced on unchanged `1cdc625` code: 0/8 failures idle, 6/8 with 32
+    busy processes. Cause: real git/rg subprocesses under production budgets
+    time out in one compile and not the next (identity probe
+    `head: null`/`probe_timeout`, `branch (unknown)`, git status, rg slice),
+    so the brief legitimately differs. Not N7-related.
+  - Fix (test only): the compound determinism test now uses the existing
+    `test_determinism` isolation (test-local 20 s collector budgets; skip
+    when recorded outcomes differ; assert identical briefs otherwise).
+    Production budgets unchanged. Evidence:
+    `F:\Claude-Tools\reports\2026-10-12__evidence-compiler-completion\`.
+
 - 2026-10-12 — **N7: whole-prompt `<agent-message …>` envelopes → `harness`.**
   - Owner grant (chat, 2026-10-12): bounded local implementation; no push,
     merge, install, hook/config change or deployment.
@@ -189,6 +205,13 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
     the collector defect below.
 
 ## Roadmap / queued
+
+- 2026-10-13 — **Identity probe hits its fixed 1000 ms budget on this
+  machine.** Even without added load, 2 of 8 compound-test runs recorded
+  `head_state: probe_timeout` with 20 s collector budgets
+  (`_IDENTITY_PROBE_MS` is a constant); the first post-N7 live packet
+  `ep_0fb6f8a8` shows `scope_ms` 1000.0. Determinism tests then skip rather
+  than assert. Changing the budget is a production change; ungranted.
 
 - 2026-10-11 — **Queued current-scope findings, now with identifiers.**
   Summarised in `docs/roadmap.md`. These are maintenance items, not

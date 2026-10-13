@@ -227,14 +227,43 @@ def test_dotted_prompt_surfaces_member_definition(compound_repo):
 
 @pytest.mark.skipif(not HAS_RG, reason="ripgrep required")
 def test_compound_prompt_brief_is_deterministic(compound_repo):
+    """Content-order determinism, isolated from wall-clock load the same way as
+    ``test_determinism.test_repeated_compile_produces_identical_brief``.
+
+    2026-10-13: under CPU load a git identity/branch/status probe or an rg
+    slice timed out in one run and not the next (6/8 failures with 32 busy
+    processes, 0/8 idle), so the briefs legitimately differed. Budgets are
+    widened for the test only; if outcomes still differ the run is skipped as
+    environmental, otherwise the briefs must be identical."""
     import re
 
-    briefs = set()
+    from evidence_compiler.config import Config
+
+    cfg = Config()
+    cfg.data["deadline_ms"] = 60_000
+    for name in ("git", "ripgrep", "graphify"):
+        cfg.data["collectors"][name]["timeout_ms"] = 20_000
+
+    runs = []
     for _ in range(3):
         r = compile_packet(
             prompt="How is the default User-Agent header value built?",
             repository_root=compound_repo,
+            config=cfg,
             persist=False,
         )
-        briefs.add(re.sub(r'packet_id="ep_[0-9a-f]+"', 'packet_id="ep_norm"', r.brief))
-    assert len(briefs) == 1
+        brief = re.sub(r'packet_id="ep_[0-9a-f]+"', 'packet_id="ep_norm"', r.brief)
+        signature = (
+            r.packet.identity.head,
+            r.packet.identity.head_state,
+            r.packet.identity.branch,
+            tuple(
+                (c.name, c.status, (c.diagnostic or {}).get("dirty_state"), (c.diagnostic or {}).get("outcome"))
+                for c in r.packet.collectors_run
+            ),
+        )
+        runs.append((brief, signature))
+    signatures = {sig for _, sig in runs}
+    if len(signatures) > 1:
+        pytest.skip(f"collector outcomes differed between runs (machine under load): {signatures}")
+    assert len({brief for brief, _ in runs}) == 1

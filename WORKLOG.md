@@ -5,6 +5,26 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Done
 
+- 2026-10-12 — **N7: whole-prompt `<agent-message …>` envelopes → `harness`.**
+  - Owner grant (chat, 2026-10-12): bounded local implementation; no push,
+    merge, install, hook/config change or deployment.
+  - `scoping.py`: one anchored whole-block envelope (same rule as
+    `<cross-session-message>`); `agent-message` added to default
+    `markup_tags`. Prose quotes, text around a block, two blocks, and
+    pasted copies stay `human`.
+  - Tests: `tests/unit/test_agent_message_traffic.py` (9). Local suite green.
+  - Differential replay, HEAD vs N7, over BIMpossible/Workspace/AddIns
+    live stores (474 prompts recovered by transcript hash, no text
+    persisted): 73 flip human→harness with 0 symbols, all `<agent-message>`
+    envelopes; 401 identical `source_kind` + symbols.
+- 2026-10-12 — **W3 labels persisted: 7 of 12 owner-ratified judgments.**
+  - Via `evidence review label` in `F:\BIMpossible` (all `neutral`, notes
+    carry the ratified reasons): `cc4c43b4 cb87cfc6 94b86fdd c0352caf
+    6d4a0514 407f5acd debf1e9e`.
+  - Not persistable by an existing route (rotated out of the live store,
+    archive-only): `89df7aa2 551c124f dc47b307 d5f070ee 6f3f9cf3`. See
+    *Needs your call* (archive-only label route).
+
 - 2026-10-11 — **`docs/roadmap.md` replaced with the evidence-gated track.**
   - The obsolete 2026-08-21 version plan is kept as superseded.
   - README now links prominently to the roadmap.
@@ -176,7 +196,7 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
     - N4: vocabulary validation
     - N5: `load_labels` robustness
   - Status of N1–N5: queued, ungranted, unchanged triggers.
-  - **N7 (proposed identifier; ungranted; not implemented):**
+  - **N7 (owner-granted 2026-10-12, bounded local; implemented locally, not pushed/installed):**
     - The finding: `<agent-message from=…>` envelopes are classified
       `human` and injected. N6's anchored envelopes do not cover this
       shape.

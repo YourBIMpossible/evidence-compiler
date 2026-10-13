@@ -100,7 +100,7 @@ grant. Details are in [`WORKLOG.md`](../WORKLOG.md) → *Roadmap / queued*.
 | N3 | `save_packet` leaves a `.tmp` file on write failure | Queued, ungranted |
 | N4 | Packet vocabulary constants are not validated on load | Queued, ungranted |
 | N5 | `load_labels` raises on an unreadable labels file | Queued, ungranted |
-| N7 | `<agent-message from=…>` envelopes classify `human` and inject; N6 does not cover this shape | **Proposed** identifier; ungranted; not implemented |
+| N7 | `<agent-message from=…>` envelopes classify `human` and inject; N6 does not cover this shape | Owner-granted 2026-10-12 (bounded local); implemented locally, not pushed or installed |
 | — | `/review-all` W3-pass findings ([report](reviews/2026-09-06__review-all__w3-pass.md)) | Queued, ungranted |
 | — | W3 label route for archive-only packets | Owner decision |
 

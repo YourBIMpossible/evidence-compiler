@@ -58,6 +58,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "task-notification",
             "ci-monitor-event",
             "cross-session-message",
+            "agent-message",
         ],
     },
     "review": {

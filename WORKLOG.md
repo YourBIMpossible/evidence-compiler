@@ -24,7 +24,7 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
   - Not persistable by an existing route (rotated out of the live store,
     archive-only): `89df7aa2 551c124f dc47b307 d5f070ee 6f3f9cf3`.
 - 2026-10-12 — **W3 closed (owner-granted).** The 5 archive-only judgments
-  are in `F:\BIMpossible\.evidence-compiler\logseview\w3-archive-judgments.jsonl`,
+  are in `F:\BIMpossible\.evidence-compiler\logs\review\w3-archive-judgments.jsonl`,
   each bound to its verified archive sha256; archived packets untouched, no
   restore. Receipt reconciles 7 CLI + 5 sidecar = 12 neutral, 0 helped.
   `NORTHSTAR.md` Window 3 entry recorded as closed (owner-approved).

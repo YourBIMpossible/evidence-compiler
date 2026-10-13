@@ -122,16 +122,23 @@ _HARNESS_PATH_RE = re.compile(
 # Cross-session traffic is recognised only by its whole-prompt envelope: the
 # harness delivers a peer session's message as exactly one
 # ``<cross-session-message ...>`` block, and an idle notice as a line that
-# begins ``[Cross-session idle notice]``. A person quoting either in prose,
-# or pasting one inside ``<pasted_content>``, does not match.
-_HARNESS_ENVELOPES = (
-    re.compile(
-        r"\A\s*<cross-session-message(?:\s[^<>]*)?>"
-        r"(?:(?!</?cross-session-message[\s>]).)*"
-        r"</cross-session-message>\s*\Z",
+# begins ``[Cross-session idle notice]``. A teammate/subagent message
+# arrives the same way as exactly one ``<agent-message ...>`` block. A person
+# quoting any of these in prose, or pasting one inside ``<pasted_content>``,
+# does not match.
+def _whole_block(tag: str) -> re.Pattern[str]:
+    return re.compile(
+        rf"\A\s*<{tag}(?:\s[^<>]*)?>"
+        rf"(?:(?!</?{tag}[\s>]).)*"
+        rf"</{tag}>\s*\Z",
         re.S,
-    ),
+    )
+
+
+_HARNESS_ENVELOPES = (
+    _whole_block("cross-session-message"),
     re.compile(r"\A\s*\[Cross-session idle notice\]"),
+    _whole_block("agent-message"),
 )
 
 SOURCE_KINDS = ("human", "harness")

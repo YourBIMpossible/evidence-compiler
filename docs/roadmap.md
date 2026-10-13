@@ -1,6 +1,6 @@
 # Evidence Compiler — Roadmap
 
-**Last updated:** 2026-10-11 · **Installed runtime:** 0.3.1 at
+**Last updated:** 2026-10-11 (W3 ratification status) · **Installed runtime:** 0.3.1 at
 `92a9b0088291ae14bc85a296d4b8cc22ebfc2527`. Later documentation-only commits on
 `master` change the published head, not the installed runtime.
 
@@ -79,14 +79,18 @@ an open historical evidence gap, not a closure.
 
 Do not generate probe traffic, and do not poll unchanged packets.
 
-**In parallel (owner): Window 3 usefulness review.**
+**Window 3 usefulness review — closed 2026-10-12.**
 
-- 12 agent-proposed judgments await owner ratification: ten original W3
-  packets, one proposed replacement, and one runner-up.
-- Persisted labels remain zero.
-- These are not ratified human usefulness evidence, and W3 is not closed.
-- Ratifying them does not authorize a phase. The proposed review reports
-  recurring noise, not demonstrated high-cost harm.
+- 12 agent-proposed judgments (ten original W3 packets, one proposed
+  replacement, and one runner-up) were **owner-ratified on 2026-10-11**: all
+  12 `neutral`, with their recorded reasons and the review's sampling and
+  attribution limits intact. This means no observable contribution or harm
+  in the inspected evidence, not proof of zero internal effect.
+- **W3 closed 2026-10-12** (owner-granted): 7 labels via `evidence review
+  label`; the 5 archive-only judgments in a local sidecar bound to verified
+  archive hashes (not CLI labels). Window membership unchanged.
+- Ratification does not authorize a phase. The review reports recurring
+  noise, not demonstrated high-cost harm.
 
 ## Queued — current-scope maintenance, not a phase
 
@@ -100,9 +104,9 @@ grant. Details are in [`WORKLOG.md`](../WORKLOG.md) → *Roadmap / queued*.
 | N3 | `save_packet` leaves a `.tmp` file on write failure | Queued, ungranted |
 | N4 | Packet vocabulary constants are not validated on load | Queued, ungranted |
 | N5 | `load_labels` raises on an unreadable labels file | Queued, ungranted |
-| N7 | `<agent-message from=…>` envelopes classify `human` and inject; N6 does not cover this shape | **Proposed** identifier; ungranted; not implemented |
+| N7 | `<agent-message from=…>` envelopes classify `human` and inject; N6 does not cover this shape | Owner-granted 2026-10-12; delivered via PR (see WORKLOG) |
 | — | `/review-all` W3-pass findings ([report](reviews/2026-09-06__review-all__w3-pass.md)) | Queued, ungranted |
-| — | W3 label route for archive-only packets | Owner decision |
+| — | W3 label route for archive-only packets | Resolved 2026-10-12: hash-bound local sidecar |
 
 ## Frozen — reopens only on the stated evidence
 

@@ -121,8 +121,9 @@ prompt deterministically:
   `<local-command-stdout`, `<command-name>`) or a harness temp-file path, or
   the whole prompt is one cross-session envelope: a single
   `<cross-session-message …>…</cross-session-message>` block, or text that
-  begins `[Cross-session idle notice]`. A person quoting either marker in
-  prose, or pasting one inside `<pasted_content>`, stays `human`. No symbols are extracted, the packet is still written (so the traffic is
+  begins `[Cross-session idle notice]`, or a single
+  `<agent-message …>…</agent-message>` block (a teammate/subagent message).
+  A person quoting any of these markers in prose, adding text around one, or pasting one inside `<pasted_content>`, stays `human`. No symbols are extracted, the packet is still written (so the traffic is
   visible), and review classifies it as `harness` traffic.
 - `task.source_kind: human` — everything else.
 

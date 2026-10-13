@@ -96,6 +96,11 @@ validation, not stagnation.
   hurt/noise 4, insufficient 1. Interpretation is limited: a Windows ripgrep
   decode defect (since fixed) removed the lexical pass from a large share of
   the sampled packets, so the window measured breakage more than usefulness.
+- **Window 3 — closed 2026-10-12 (reviewed).** Labels: helped 0, neutral
+  12, hurt/noise 0, insufficient 0 (owner-ratified 2026-10-11; 7 via
+  `evidence review label`, 5 archive-only packets via a hash-bound local
+  sidecar). Neutral means no observable contribution or harm in the
+  inspected evidence, within the review's sampling and attribution limits.
 - **Window 3 — started 2026-09-06 on v0.3.0** after the collector, timeout,
   noise, Unicode, duplicate-reference, and review-tooling improvements.
   Cadence: first review at 10 eligible human-task packets or 14 days,

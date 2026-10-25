@@ -26,19 +26,43 @@ HAS_RG = shutil.which("rg") is not None
 PROMPT = "Why does AlphaService.run break inside compute_alpha, and is OriginSystem referenced anywhere?"
 
 
-def _compile(repo):
+def _compile(repo, config=None):
     return compile_packet(
         prompt=PROMPT,
         repository_root=repo,
         active_file="src/alpha.py",
         session_id="sess-1",
         turn_id="turn-1",
+        config=config,
     )
 
 
 def test_end_to_end_packet_shape(dirty_golden_repo):
-    result = _compile(dirty_golden_repo)
+    """Full packet shape through the real collectors, isolated from wall-clock load the same way as
+    ``test_compound_symbols.test_compound_prompt_brief_is_deterministic`` (#26).
+
+    The assertions below need git and ripgrep to have *answered*: a bound head, the dirty overlay, the
+    negative evidence for the absent symbol. On a loaded machine a probe can miss its budget, the packet
+    then (correctly) records ``head_state="probe_timeout"`` or a collector ``timeout``, and the shape
+    assertions fail for a reason that is not a product defect (reproduced deterministically with a ripgrep
+    that answers in 2.5 s or a git that answers in 1.5 s; production budgets are 1500 ms and 1000 ms).
+    Budgets are widened for the test only; if a probe still timed out, the run is skipped as environmental,
+    otherwise every assertion applies unchanged."""
+    from evidence_compiler.config import Config
+
+    cfg = Config()
+    cfg.data["deadline_ms"] = 60_000
+    for name in ("git", "ripgrep", "graphify"):
+        cfg.data["collectors"][name]["timeout_ms"] = 20_000
+
+    result = _compile(dirty_golden_repo, config=cfg)
     p = result.packet
+    timed_out = [c.name for c in p.collectors_run if c.status == "timeout"]
+    if p.identity.head_state == "probe_timeout" or timed_out:
+        pytest.skip(
+            f"git or ripgrep missed its budget (machine under load): head_state={p.identity.head_state!r}, "
+            f"collector timeouts={timed_out}"
+        )
 
     # identity binding
     assert p.schema_version == 1

@@ -5,6 +5,25 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Done
 
+- 2026-10-25 — **`test_end_to_end_packet_shape` load-fragility proven and isolated (test only).**
+  - Evidence (Windows, Python 3.14, ripgrep 14.1.1, git 2.55): unchanged `99cad71`, the test alone, fresh
+    process each run: 0/50 failures idle, **4/150 under load** (16 busy processes, all at below-normal
+    priority so only the runs themselves are slowed). Full `-rA --tb=long` output kept for each: three were
+    `assert any("beta.py" in …)` (the git collector missed its 600 ms budget, so no dirty overlay), one was
+    `assert p.identity.head` with `head_state='probe_timeout'` (identity probe, fixed 1000 ms).
+  - Deterministic reproduction: a git that answers in 1.5 s, or a ripgrep that answers in 2.5 s, fails the
+    test 6/6 (git: `git head should be bound`; ripgrep: the negative-evidence assertion), while the
+    #26 test under the same slowness passes.
+  - Fix (test only, #26's style): test-local 20 s collector budgets; skip, as environmental, when the packet
+    itself records `head_state == "probe_timeout"` or a collector `timeout`; every assertion unchanged
+    otherwise. Production budgets unchanged. After: 50/50 pass idle; under the same load 48 pass and 2 skip
+    (both `probe_timeout`), 0 fail; a git at 1.5 s skips, a ripgrep at 2.5 s passes (budget widened), a
+    ripgrep past 20 s skips.
+  - Also seen, not fixed (out of this item's scope): `test_clean_repo_symbol_match` fails with a
+    ripgrep that answers in 2.5 s (same cause); `tests/unit/test_hook_safe.py::test_success_logs_one_injected_line`
+    failed once in a first idle full-suite run (hook returned success with empty output; output not
+    kept) and passed 50/50 idle in isolation.
+
 - 2026-10-13 — **Local test failures after N7 diagnosed (test isolation).**
   - Retained evidence: run A `3 failed, 311 passed` (names not retained);
     run B `test_compound_prompt_brief_is_deterministic` at

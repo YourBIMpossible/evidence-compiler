@@ -1,0 +1,3 @@
+# The pre-commit hook is POSIX sh: keep it LF even on Windows clones with core.autocrlf=true,
+# or sh fails on the trailing CR.
+.githooks/* text eol=lf

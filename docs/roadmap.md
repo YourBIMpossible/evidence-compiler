@@ -1,8 +1,9 @@
 # Evidence Compiler — Roadmap
 
-**Last updated:** 2026-10-11 (W3 ratification status) · **Installed runtime:** 0.3.1 at
-`92a9b0088291ae14bc85a296d4b8cc22ebfc2527`. Later documentation-only commits on
-`master` change the published head, not the installed runtime.
+**Last updated:** 2026-11-01 (N6/N7 accepted) · **Installed runtime:** 0.3.1,
+dist-info commit `1cdc625c` (same runtime content as the last runtime change on
+`master`, `92a9b0088291ae14bc85a296d4b8cc22ebfc2527`). Later documentation-only
+commits on `master` change the published head, not the installed runtime.
 
 This is a navigation and status document. It grants no execution authority.
 Work operates under [`NORTHSTAR.md`](../NORTHSTAR.md), applicable owner
@@ -47,7 +48,7 @@ for the record.
 | 2026-09-06 | **Window 3 evidence-quality pass** (v0.2.0 → v0.3.0): rg UTF-8 decode fix, timeouts, harness-notification detection, Unicode/dedup, git dirty-state observability, `evidence review` workflow | PR #9–#16 |
 | 2026-09-16/21 | Batched rg search, exact filename-stem evidence, equal-score tie-break, stem lookup respects the deadline | PR #18–#20 |
 | 2026-10-06/10 | Markup-tag stripping; allow-listed secondary repository scope ([decision](decisions/2026-10-06__secondary-repository-scope.md)); review-repair pass | `0646e8d`, PR #21–#22 |
-| 2026-10-11 | **N6**: peer-session messages and cross-session idle notices classified `harness`. **Merged and installed; natural-traffic acceptance partial.** | PR #23 |
+| 2026-10-11 | **N6**: peer-session messages and cross-session idle notices classified `harness`. **Merged and installed; accepted 2026-11-01 on natural traffic.** | PR #23 |
 
 ### Shipped vs accepted
 
@@ -55,11 +56,20 @@ These are different states:
 
 | State | Revision |
 |---|---|
-| Runtime published and installed (last runtime change on `master`) | `92a9b0088291ae14bc85a296d4b8cc22ebfc2527` |
+| Last runtime change on `master` | `92a9b0088291ae14bc85a296d4b8cc22ebfc2527` |
+| Installed runtime (dist-info `direct_url.json`; same content) | `1cdc625c` |
 | Published `master` head | Moves with documentation-only commits; does not imply a reinstall |
-| Last accepted runtime (rollback target) | `4df93f2ab255a9470f51c5580f52330e17ac7e7b` |
+| Last accepted runtime (rollback target) | `92a9b0088291ae14bc85a296d4b8cc22ebfc2527` (accepted 2026-11-01; previous `4df93f2ab255a9470f51c5580f52330e17ac7e7b`) |
 
-N6 is not accepted until its natural-traffic check completes.
+N6 and N7 were accepted on 2026-11-01 (owner, in chat) on the passive
+natural-traffic re-check receipt of 2026-11-01 (packets 2026-10-16 to
+2026-11-01, 1233 inspected). Criterion, per the owner's 2026-10-31
+clarification: envelope prompts classified `harness`, 0 extracted symbols, no
+evidence search; a git-status-only brief is permitted. Observed: PEER 172/172,
+IDLE 24/24, AGENT-MSG 116/116, genuine prompts `human` 521/521,
+`persist_failed` 0. Limits carried: AGENT-MSG and PEER origin verified from
+queue entries only; 100 empty-brief packets have no hook.log line (early
+return in `hook_safe.py`, packets persisted).
 
 ### Phase 1B status note
 
@@ -69,15 +79,15 @@ an open historical evidence gap, not a closure.
 
 ## Now — one active milestone
 
-**Passive natural-traffic acceptance of N6** on the installed runtime.
-
-**Done means:**
+None active. **Passive natural-traffic acceptance of N6** completed and was
+accepted 2026-11-01 (see *Shipped vs accepted*). Done-means, as met:
 
 - A natural peer message or idle notice is classified `harness` with 0 symbols.
 - Genuine prompts stay `human`.
 - There is no `persist_failed`.
 
-Do not generate probe traffic, and do not poll unchanged packets.
+Phase 1A remains frozen; no publish, install or release. The next milestone
+needs an owner grant.
 
 **Window 3 usefulness review — closed 2026-10-12.**
 
@@ -104,7 +114,7 @@ grant. Details are in [`WORKLOG.md`](../WORKLOG.md) → *Roadmap / queued*.
 | N3 | `save_packet` leaves a `.tmp` file on write failure | Queued, ungranted |
 | N4 | Packet vocabulary constants are not validated on load | Queued, ungranted |
 | N5 | `load_labels` raises on an unreadable labels file | Queued, ungranted |
-| N7 | `<agent-message from=…>` envelopes classify `human` and inject; N6 does not cover this shape | Owner-granted 2026-10-12; delivered via PR (see WORKLOG) |
+| N7 | `<agent-message from=…>` envelopes classify `human` and inject; N6 does not cover this shape | Owner-granted 2026-10-12; delivered via PR; **accepted 2026-11-01** on the N6 criterion (116/116) |
 | — | `/review-all` W3-pass findings ([report](reviews/2026-09-06__review-all__w3-pass.md)) | Queued, ungranted |
 | — | W3 label route for archive-only packets | Resolved 2026-10-12: hash-bound local sidecar |
 

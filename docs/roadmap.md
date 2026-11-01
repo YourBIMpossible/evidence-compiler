@@ -1,9 +1,8 @@
 # Evidence Compiler — Roadmap
 
-**Last updated:** 2026-11-01 (N6/N7 accepted) · **Installed runtime:** 0.3.1,
-dist-info commit `1cdc625c` (same runtime content as the last runtime change on
-`master`, `92a9b0088291ae14bc85a296d4b8cc22ebfc2527`). Later documentation-only
-commits on `master` change the published head, not the installed runtime.
+**Last updated:** 2026-11-01 (N6/N7 accepted) · **Installed runtime:** 0.3.1 at
+`92a9b0088291ae14bc85a296d4b8cc22ebfc2527`. Later documentation-only commits on
+`master` change the published head, not the installed runtime.
 
 This is a navigation and status document. It grants no execution authority.
 Work operates under [`NORTHSTAR.md`](../NORTHSTAR.md), applicable owner
@@ -56,8 +55,7 @@ These are different states:
 
 | State | Revision |
 |---|---|
-| Last runtime change on `master` | `92a9b0088291ae14bc85a296d4b8cc22ebfc2527` |
-| Installed runtime (dist-info `direct_url.json`; same content) | `1cdc625c` |
+| Runtime published and installed (last runtime change on `master`) | `92a9b0088291ae14bc85a296d4b8cc22ebfc2527` |
 | Published `master` head | Moves with documentation-only commits; does not imply a reinstall |
 | Last accepted runtime (rollback target) | `92a9b0088291ae14bc85a296d4b8cc22ebfc2527` (accepted 2026-11-01; previous `4df93f2ab255a9470f51c5580f52330e17ac7e7b`) |
 

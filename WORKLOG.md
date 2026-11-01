@@ -16,8 +16,9 @@ eports6-10-12__evidence-compiler-completion6-11-01__n6-n7-passive-recheck-re
   - Observed: PEER 172/172, IDLE 24/24, AGENT-MSG 116/116, human 521/521, `persist_failed` 0.
   - Limits carried, not closed: AGENT-MSG/PEER origin verified from queue entries only; 100 empty-brief
     packets without a hook.log line (evidenced cause: early return in `hook_safe.py`; packets persisted).
-  - Roadmap: Now cleared, rollback target moved to `92a9b00`, installed-runtime row relabelled
-    (`1cdc625c` dist-info, same content). No code, config, hook or install change.
+  - Roadmap: Now cleared, rollback target moved to `92a9b00`. The optional relabel of the
+    installed-runtime row (`92a9b00` vs dist-info `1cdc625c`) was not granted (OD-057) and is not
+    made. No code, config, hook or install change.
 
 - 2026-10-25 — **`test_end_to_end_packet_shape` load-fragility proven and isolated (test only).**
   - Evidence (Windows, Python 3.14, ripgrep 14.1.1, git 2.55): unchanged `99cad71`, the test alone, fresh

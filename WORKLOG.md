@@ -5,6 +5,20 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 ## Done
 
+- 2026-11-01 — **N6 and N7 accepted on natural traffic (owner, in chat; docs only).**
+  - Receipt: `F:\Claude-Tools\reports\2026-10-12__evidence-compiler-completion\2026-11-01__n6-n7-passive-recheck-receipt.md`
+    (read-only re-check, packets 2026-10-16T23:49Z to 2026-11-01T04:45Z, 1233 across four stores).
+  - Criterion (owner clarification 2026-10-31, answering OD-031 item 36): envelope prompts `harness`,
+    0 symbols, no evidence search; git-status-only brief permitted. The roadmap N6 Done-means never
+    said "not injected"; that phrase came from the 2026-10-13 task prompt and is withdrawn. Record:
+    `F:\Claude-Tools\reports\2026-10-12__evidence-compiler-completion\2026-11-01__item-36-not-injected-acceptance-wording.md`.
+  - Observed: PEER 172/172, IDLE 24/24, AGENT-MSG 116/116, human 521/521, `persist_failed` 0.
+  - Limits carried, not closed: AGENT-MSG/PEER origin verified from queue entries only; 100 empty-brief
+    packets without a hook.log line (evidenced cause: early return in `hook_safe.py`; packets persisted).
+  - Roadmap: Now cleared, rollback target moved to `92a9b00`. The optional relabel of the
+    installed-runtime row (`92a9b00` vs dist-info `1cdc625c`) was not granted (OD-057) and is not
+    made. No code, config, hook or install change.
+
 - 2026-10-25 — **`test_end_to_end_packet_shape` load-fragility proven and isolated (test only).**
   - Evidence (Windows, Python 3.14, ripgrep 14.1.1, git 2.55): unchanged `99cad71`, the test alone, fresh
     process each run: 0/50 failures idle, **4/150 under load** (16 busy processes, all at below-normal

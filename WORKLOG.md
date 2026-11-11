@@ -7,7 +7,6 @@ Routing per `NORTHSTAR.md`: small-and-on-mission → Done; worth-doing branch-of
 
 - 2026-11-01 — **N6 and N7 accepted on natural traffic (owner, in chat; docs only).**
   - Receipt: `F:\Claude-Tools\reports\2026-10-12__evidence-compiler-completion\2026-11-01__n6-n7-passive-recheck-receipt.md`
-eports6-10-12__evidence-compiler-completion6-11-01__n6-n7-passive-recheck-receipt.md`
     (read-only re-check, packets 2026-10-16T23:49Z to 2026-11-01T04:45Z, 1233 across four stores).
   - Criterion (owner clarification 2026-10-31, answering OD-031 item 36): envelope prompts `harness`,
     0 symbols, no evidence search; git-status-only brief permitted. The roadmap N6 Done-means never

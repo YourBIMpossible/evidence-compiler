@@ -57,7 +57,7 @@ These are different states:
 |---|---|
 | Runtime published and installed (last runtime change on `master`) | `92a9b0088291ae14bc85a296d4b8cc22ebfc2527` |
 | Published `master` head | Moves with documentation-only commits; does not imply a reinstall |
-| Last accepted runtime (rollback target) | `92a9b0088291ae14bc85a296d4b8cc22ebfc2527` (accepted 2026-11-01; previous `4df93f2ab255a9470f51c5580f52330e17ac7e7b`) |
+| Last accepted runtime (rollback target) | `1cdc625c4c18ea95994eaf424b039b06e9387d6c` (N7 merge, PR #25, which contains N6 `92a9b00`; N6 and N7 accepted 2026-11-01; compare `a22b159...92a9b00` = behind 3, so N7 is not in `92a9b00`; compare `92a9b00...1cdc625` changes `scoping.py` and `config.py`; no `src` change on `master` after `1cdc625`; previous `4df93f2ab255a9470f51c5580f52330e17ac7e7b`) |
 
 N6 and N7 were accepted on 2026-11-01 (owner, in chat) on the passive
 natural-traffic re-check receipt of 2026-11-01 (packets 2026-10-16 to

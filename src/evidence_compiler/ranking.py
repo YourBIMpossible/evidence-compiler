@@ -69,12 +69,19 @@ def _score_item(
     statement_low = item.source_claim.statement.lower()
     claimed_symbol = str(item.provenance.extra.get("symbol", "")).lower()
 
-    # direct symbol
+    # direct symbol. The symbol the collector searched for is the attribution
+    # when it is a prompt symbol; the statement test is the fallback for items
+    # collected without one. Checking it first matters only for the reason
+    # text: an earlier prompt symbol that merely appears on the matched line
+    # (or inside the reference path) must not be named as the one referenced.
     matched_symbol = None
-    for sym in symbols:
-        if sym and (sym == claimed_symbol or sym in statement_low):
-            matched_symbol = sym
-            break
+    if claimed_symbol and claimed_symbol in symbols:
+        matched_symbol = claimed_symbol
+    else:
+        for sym in symbols:
+            if sym and sym in statement_low:
+                matched_symbol = sym
+                break
     if matched_symbol:
         comp.direct_symbol = W_DIRECT_SYMBOL
         reasons.append(f"references prompt symbol '{matched_symbol}'")
